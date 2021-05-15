@@ -1,0 +1,7 @@
+componentConfig: true
+domain: tech.zozo.com
+layout:
+- go.kubebuilder.io/v3
+projectName: fluent-pvc-operator
+repo: github.com/st-tech/fluent-pvc-operator
+version: "3"
