@@ -1,0 +1,20 @@
+# permissions for end users to view fluentpvcoperators.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: fluentpvcoperator-viewer-role
+rules:
+- apiGroups:
+  - fluent-pvc-operator.tech.zozo.com
+  resources:
+  - fluentpvcoperators
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - fluent-pvc-operator.tech.zozo.com
+  resources:
+  - fluentpvcoperators/status
+  verbs:
+  - get
