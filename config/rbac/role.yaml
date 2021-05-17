@@ -1,0 +1,34 @@
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager-role
+rules:
+- apiGroups:
+  - fluent-pvc-operator.tech.zozo.com
+  resources:
+  - fluentpvcoperators
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - fluent-pvc-operator.tech.zozo.com
+  resources:
+  - fluentpvcoperators/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - fluent-pvc-operator.tech.zozo.com
+  resources:
+  - fluentpvcoperators/status
+  verbs:
+  - get
+  - patch
+  - update

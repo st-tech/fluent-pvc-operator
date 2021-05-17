@@ -1,0 +1,21 @@
+componentConfig: true
+domain: tech.zozo.com
+layout:
+- go.kubebuilder.io/v3
+projectName: fluent-pvc-operator
+repo: github.com/st-tech/fluent-pvc-operator
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: tech.zozo.com
+  group: fluent-pvc-operator
+  kind: FluentPVCOperator
+  path: github.com/st-tech/fluent-pvc-operator/api/v1alpha1
+  version: v1alpha1
+  webhooks:
+    defaulting: true
+    validation: true
+    webhookVersion: v1
+version: "3"
