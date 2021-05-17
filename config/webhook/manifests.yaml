@@ -56,3 +56,24 @@ webhooks:
     resources:
     - pods
   sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-fluent-pvc-operator-tech-zozo-com-v1alpha1-fluentpvcoperator
+  failurePolicy: Fail
+  name: vpod.kb.io
+  rules:
+  - apiGroups:
+    - ""
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - pods
+  sideEffects: None
