@@ -81,6 +81,9 @@ func main() {
 	pv := v1.NewPodValidator(mgr.GetClient())
 	mgr.GetWebhookServer().Register("/validate-core-v1-pod", &webhook.Admission{Handler: pv})
 
+	pa := v1.NewPodAnnotator(mgr.GetClient())
+	mgr.GetWebhookServer().Register("/mutate-core-v1-pod", &webhook.Admission{Handler: pa})
+
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
