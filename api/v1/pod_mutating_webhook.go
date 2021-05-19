@@ -34,6 +34,9 @@ func (a *podAnnotator) Handle(ctx context.Context, req admission.Request) admiss
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
+	if pod.Annotations == nil {
+		pod.Annotations = map[string]string{}
+	}
 	if pod.Annotations["fluent-pvc.enabled"] != "true" {
 		return admission.Denied(fmt.Sprintf("Pod: %s is not a target for fluent-pvc.", pod.Name))
 	}
@@ -52,13 +55,8 @@ func (a *podAnnotator) Handle(ctx context.Context, req admission.Request) admiss
 
 	pvcClient := clientset.CoreV1().PersistentVolumeClaims(corev1.NamespaceDefault)
 
-	storageClassName := "default-storage-class"
+	storageClassName := "standard"
 	pvcName := "fluent-pvc-" + pod.Name + "-" + RandStringRunes(8)
-
-	// _, err = pvcClient.Get(ctx, pvcName, metav1.GetOptions{})
-	// if err == nil {
-	// 	return admission.Denied(fmt.Sprintf("fluent-pvc named %s is already exist", pvcName))
-	// }
 
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
@@ -82,10 +80,32 @@ func (a *podAnnotator) Handle(ctx context.Context, req admission.Request) admiss
 	}
 	fmt.Printf("Created PVC %q.\n", pvcResult.GetObjectMeta().GetName())
 
+	pvcVolume := corev1.Volume{
+		Name: "fluent-pvc",
+		VolumeSource: corev1.VolumeSource{
+			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+				ClaimName: pvcName,
+			},
+		},
+	}
+	pod.Spec.Volumes = append(pod.Spec.Volumes, pvcVolume)
+
+	pod.Annotations["fluent-pvc.on-create.processed"] = "true"
+	pod.Annotations["fluent-pvc.pod-name"] = pod.Name
+
+	podPatched := pod.DeepCopy()
+	for i := range pod.Spec.Containers {
+		podPatched.Spec.Containers[i].VolumeMounts = append(podPatched.Spec.Containers[i].VolumeMounts, corev1.VolumeMount{
+			Name:      "fluent-pvc",
+			MountPath: "/tmp/fluent-pvc",
+		})
+	}
+
 	marshaledPod, err := json.Marshal(pod)
 	if err != nil {
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
+
 	return admission.PatchResponseFromRaw(req.Object.Raw, marshaledPod)
 }
 
