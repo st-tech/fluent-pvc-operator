@@ -1,4 +1,4 @@
-package v1
+package v1alpha1
 
 import (
 	"context"
@@ -84,7 +84,7 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	err = (&Pod{}).SetupWebhookWithManager(mgr)
+	err = (&FluentPVCOperator{}).SetupWebhookWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
 	//+kubebuilder:scaffold:webhook

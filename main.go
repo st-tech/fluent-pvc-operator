@@ -70,8 +70,8 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "FluentPVCOperator")
 		os.Exit(1)
 	}
-	if err = (&corev1.Pod{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "Pod")
+	if err = (&fluentpvcoperatorv1alpha1.FluentPVCOperator{}).SetupWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "FluentPVCOperator")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
