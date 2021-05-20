@@ -4,4 +4,14 @@ layout:
 - go.kubebuilder.io/v3
 projectName: fluent-pvc-operator
 repo: github.com/st-tech/fluent-pvc-operator
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: tech.zozo.com
+  group: fluent-pvc-operator
+  kind: FluentPVC
+  path: github.com/st-tech/fluent-pvc-operator/api/v1alpha1
+  version: v1alpha1
 version: "3"
