@@ -97,6 +97,7 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 
 	pvcClient := clientset.CoreV1().PersistentVolumeClaims(corev1.NamespaceDefault)
 
+	// TODO: Fix storage class name to custom storage class
 	storageClassName := "standard"
 	pvcName := "fluent-pvc-" + pod.Name + "-" + RandStringRunes(8)
 
@@ -139,6 +140,7 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 
 	pod.Annotations["fluent-pvc.on-create.processed"] = "true"
 	pod.Annotations["fluent-pvc.pod-name"] = pod.Name
+	pod.Annotations["fluent-pvc.pvc-name"] = pvcName
 
 	podPatched := pod.DeepCopy()
 	for i := range pod.Spec.Containers {
@@ -170,6 +172,50 @@ func (v *podMutatorOnDelete) Handle(ctx context.Context, req admission.Request) 
 	err := v.decoder.Decode(req, pod)
 	if err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
+	}
+
+	if pod.Annotations == nil {
+		pod.Annotations = map[string]string{}
+	}
+	if pod.Annotations["fluent-pvc.enabled"] != "true" {
+		podwebhooklog.Info(fmt.Sprintf("Pod: %s is not a target for fluent-pvc.", pod.Name))
+		return PodAdmissionResponse(pod, req)
+	}
+	if pod.Annotations["fluent-pvc.on-create.processed"] != "true" {
+		podwebhooklog.Info(fmt.Sprintf("fluent-pvc is not exist for Pod: %s", pod.Name))
+		return PodAdmissionResponse(pod, req)
+	}
+
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		panic(err.Error())
+	}
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return admission.Errored(http.StatusInternalServerError, err)
+	}
+
+	pvcClient := clientset.CoreV1().PersistentVolumeClaims(corev1.NamespaceDefault)
+
+	// pvcClient.Delete(ctx, pod.Annotations["fluent-pvc.pvc-name"], metav1.DeleteOptions{})
+
+	pvc, err := pvcClient.Get(ctx, pod.Annotations["fluent-pvc.pvc-name"], metav1.GetOptions{})
+	if err != nil {
+		return admission.Errored(http.StatusInternalServerError, err)
+	}
+	if pvc.Labels == nil {
+		pvc.Labels = map[string]string{}
+	}
+	pvc.Labels["fluent-pvc.deleted"] = "true"
+
+	marshaledPvc, err := json.Marshal(pvc)
+	if err != nil {
+		return admission.Errored(http.StatusInternalServerError, err)
+	}
+
+	_, err = pvcClient.Patch(ctx, pod.Annotations["fluent-pvc.pvc-name"], "JSONPatchType", marshaledPvc, metav1.PatchOptions{})
+	if err != nil {
+		return admission.Errored(http.StatusInternalServerError, err)
 	}
 
 	return PodAdmissionResponse(pod, req)
