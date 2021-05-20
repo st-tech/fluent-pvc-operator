@@ -70,7 +70,7 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "FluentPVC")
 		os.Exit(1)
 	}
-	if err = (&corev1.Pod{}).SetupWebhookWithManager(mgr); err != nil {
+	if err = fluentpvcoperatorv1alpha1.SetupPodWebhookWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create webhook", "webhook", "Pod")
 		os.Exit(1)
 	}
