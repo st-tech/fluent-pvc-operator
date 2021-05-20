@@ -1,7 +1,3 @@
-/*
-Copyright 2021.
-*/
-
 package main
 
 import (
