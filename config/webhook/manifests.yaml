@@ -13,19 +13,19 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-fluent-pvc-operator-tech-zozo-com-v1alpha1-fluentpvcoperator
+      path: /mutate-core-v1-pod
   failurePolicy: Fail
-  name: mfluentpvcoperator.kb.io
+  name: mpod.kb.io
   rules:
   - apiGroups:
-    - fluent-pvc-operator.tech.zozo.com
+    - ""
     apiVersions:
-    - v1alpha1
+    - v1
     operations:
     - CREATE
     - UPDATE
     resources:
-    - fluentpvcoperators
+    - pods
   sideEffects: None
 
 ---
@@ -42,17 +42,17 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-fluent-pvc-operator-tech-zozo-com-v1alpha1-fluentpvcoperator
+      path: /validate-core-v1-pod
   failurePolicy: Fail
-  name: vfluentpvcoperator.kb.io
+  name: vpod.kb.io
   rules:
   - apiGroups:
-    - fluent-pvc-operator.tech.zozo.com
+    - ""
     apiVersions:
-    - v1alpha1
+    - v1
     operations:
     - CREATE
     - UPDATE
     resources:
-    - fluentpvcoperators
+    - pods
   sideEffects: None
