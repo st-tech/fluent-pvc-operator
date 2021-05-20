@@ -14,9 +14,12 @@ import (
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
+
+var podwebhooklog = logf.Log.WithName("pod-webhook")
 
 //+kubebuilder:webhook:path=/mutate-core-v1-pod,mutating=true,failurePolicy=fail,sideEffects=None,groups=core,resources=pods,verbs=create;update,versions=v1,name=mpod.kb.io,admissionReviewVersions={v1,v1beta1}
 //+kubebuilder:webhook:path=/validate-core-v1-pod,mutating=false,failurePolicy=fail,sideEffects=None,groups=core,resources=pods,verbs=create;update,versions=v1,name=vpod.kb.io,admissionReviewVersions={v1,v1beta1}
@@ -59,10 +62,17 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 		pod.Annotations = map[string]string{}
 	}
 	if pod.Annotations["fluent-pvc.enabled"] != "true" {
-		return admission.Denied(fmt.Sprintf("Pod: %s is not a target for fluent-pvc.", pod.Name))
+		podwebhooklog.Info(fmt.Sprintf("Pod: %s is not a target for fluent-pvc.", pod.Name))
+		return m.PodAdmissionResponse(pod, req)
 	}
 	if pod.Annotations["fluent-pvc.on-create.processed"] == "true" {
-		return admission.Denied(fmt.Sprintf("fluent-pvc is already exist for Pod: %s", pod.Name))
+		podwebhooklog.Info(fmt.Sprintf("fluent-pvc is already exist for Pod: %s", pod.Name))
+		return m.PodAdmissionResponse(pod, req)
+	}
+	if pod.Annotations["fluent-pvc.storage-size"] == "" {
+		// TODO: Fetch default storage size from FluentPVCOperator
+		// Set default storage size if pod annotation is not exist
+		pod.Annotations["fluent-pvc.storage-size"] = "8Gi"
 	}
 
 	config, err := rest.InClusterConfig()
@@ -82,12 +92,17 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: pvcName,
+			Annotations: map[string]string{
+				"fluent-pvc.pod-name": pod.Name,
+			},
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			AccessModes: []corev1.PersistentVolumeAccessMode{"ReadWriteOnce"},
 			Resources: corev1.ResourceRequirements{
 				Requests: corev1.ResourceList{
-					corev1.ResourceStorage: resource.MustParse("8Gi"),
+					corev1.ResourceStorage: resource.MustParse(
+						pod.Annotations["fluent-pvc.storage-size"],
+					),
 				},
 			},
 			StorageClassName: &storageClassName,
@@ -122,16 +137,18 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 		})
 	}
 
-	marshaledPod, err := json.Marshal(podPatched)
-	if err != nil {
-		return admission.Errored(http.StatusInternalServerError, err)
-	}
-
-	return admission.PatchResponseFromRaw(req.Object.Raw, marshaledPod)
+	return m.PodAdmissionResponse(podPatched, req)
 }
 func (m *podMutator) InjectDecoder(d *admission.Decoder) error {
 	m.decoder = d
 	return nil
+}
+func (m *podMutator) PodAdmissionResponse(pod *corev1.Pod, req admission.Request) admission.Response {
+	marshaledPod, err := json.Marshal(pod)
+	if err != nil {
+		return admission.Errored(http.StatusInternalServerError, err)
+	}
+	return admission.PatchResponseFromRaw(req.Object.Raw, marshaledPod)
 }
 
 type podValidator struct {
