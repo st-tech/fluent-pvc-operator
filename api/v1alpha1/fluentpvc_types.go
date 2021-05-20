@@ -20,7 +20,19 @@ type FluentPVCSpec struct {
 type FluentPVCStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+
+	// Conditions is an array of conditions.
+	// Known .status.conditions.type are: "Ready"
+	//+patchMergeKey=type
+	//+patchStrategy=merge
+	//+listType=map
+	//+listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
+
+const (
+	ConditionReady string = "Ready"
+)
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
