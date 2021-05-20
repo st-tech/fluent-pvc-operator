@@ -1,7 +1,0 @@
-apiVersion: fluent-pvc-operator.tech.zozo.com/v1alpha1
-kind: FluentPVCOperator
-metadata:
-  name: fluentpvcoperator-sample
-spec:
-  # Add fields here
-  foo: bar
