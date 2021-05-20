@@ -1,11 +1,40 @@
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // FluentPVCSpec defines the desired state of FluentPVC
 type FluentPVCSpec struct {
+	// PVC spec template to inject into pod manifests.
+	//+kubebuiler:validation:Required
+	PVCSpecTemplate corev1.PersistentVolumeClaimSpec `json:"pvcSpecTemplate"`
+	// Path to mount the PVC.
+	//+kubebuiler:validation:Required
+	PVCMountPath string `json:"pvcMountPath"`
+	// Common environment variables to inject into all containers.
+	//+optional
+	CommonEnv corev1.EnvVar `json:"commonEnv,omitempty"`
+	// Sidecare containers templates that must include a fluentd definition.
+	//+kubebuiler:validation:Required
+	//+kubebuiler:validation:MinItems=1
+	SidecarContainersTemplate []corev1.Container `json:"sidecarContainersTemplate"`
+	// Name of the fluentd container in sidecar containers.
+	//+kubebuiler:validation:Required
+	SidecarFluentdContainerName string `json:"sidecarFluentdContainerName"`
+	// Port for the sidecar fluentd RPC.
+	//+kubebuiler:validation:Required
+	SidecarFluentdRpcPort string `json:"sidecarFluentdRpcPort"`
+	// Pod spec template to finalize PVCs.
+	//+kubebuiler:validation:Required
+	PVCFinalizerPodSpecTemplate corev1.PodSpec `json:"pvcFinalizerPodSpecTemplate"`
+	// Name of the fluentd container in finalizer pod containers.
+	//+kubebuiler:validation:Required
+	PVCFinalizerFluentdContainerName string `json:"pvcFinalizerFluentdContainerName"`
+	// Port for the sidecar fluentd RPC.
+	//+kubebuiler:validation:Required
+	PVCFinalizerFluentdRpcPort string `json:"pvcFinalizerFluentdRpcPort"`
 }
 
 // FluentPVCStatus defines the observed state of FluentPVC
