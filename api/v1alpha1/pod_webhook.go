@@ -110,12 +110,17 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 		},
 	}
 
-	fmt.Println("Creating PVC...")
-	pvcResult, err := clientset.CoreV1().PersistentVolumeClaims(pod.Namespace).Create(ctx, pvc, metav1.CreateOptions{})
+	namespace := pod.Namespace
+	if pod.Namespace == "" {
+		namespace = corev1.NamespaceDefault
+	}
+
+	podwebhooklog.Info("Creating PVC...")
+	pvcResult, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Create(ctx, pvc, metav1.CreateOptions{})
 	if err != nil {
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
-	fmt.Printf("Created PVC %q.\n", pvcResult.GetObjectMeta().GetName())
+	podwebhooklog.Info("Created PVC %q.\n", pvcResult.GetObjectMeta().GetName())
 
 	pvcVolume := corev1.Volume{
 		Name: "fluent-pvc",
@@ -179,12 +184,17 @@ func (v *podMutatorOnDelete) Handle(ctx context.Context, req admission.Request) 
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
 
+	namespace := pod.Namespace
+	if pod.Namespace == "" {
+		namespace = corev1.NamespaceDefault
+	}
+
 	labelSelector := &metav1.LabelSelector{
 		MatchLabels: map[string]string{
 			"fluent-pvc.pod-name": pod.Name,
 		},
 	}
-	pvcList, err := clientset.CoreV1().PersistentVolumeClaims(pod.Namespace).List(ctx, metav1.ListOptions{
+	pvcList, err := clientset.CoreV1().PersistentVolumeClaims(namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: metav1.FormatLabelSelector(labelSelector),
 	})
 	if err != nil {
@@ -199,7 +209,7 @@ func (v *podMutatorOnDelete) Handle(ctx context.Context, req admission.Request) 
 	}}
 	payloadBytes, _ := json.Marshal(payload)
 
-	_, err = clientset.CoreV1().PersistentVolumeClaims(pod.Namespace).Patch(ctx, pvcName, types.JSONPatchType, payloadBytes, metav1.PatchOptions{})
+	_, err = clientset.CoreV1().PersistentVolumeClaims(namespace).Patch(ctx, pvcName, types.JSONPatchType, payloadBytes, metav1.PatchOptions{})
 	if err != nil {
 		return admission.Allowed(fmt.Sprintf("Label addition to %s failed.", pvcName))
 	}
