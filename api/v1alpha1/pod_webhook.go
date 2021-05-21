@@ -198,6 +198,10 @@ func (v *podMutatorOnDelete) Handle(ctx context.Context, req admission.Request) 
 		LabelSelector: metav1.FormatLabelSelector(labelSelector),
 	})
 	if err != nil {
+		podwebhooklog.Error(err, fmt.Sprintf("PersistentVolumeClaims.List() for %s failed.", pod.Name))
+		return admission.Allowed("")
+	}
+	if len(pvcList.Items) == 0 {
 		return admission.Allowed(fmt.Sprintf("PVC for %s does not exist.", pod.Name))
 	}
 	pvcName := pvcList.Items[0].ObjectMeta.Name
@@ -211,7 +215,8 @@ func (v *podMutatorOnDelete) Handle(ctx context.Context, req admission.Request) 
 
 	_, err = clientset.CoreV1().PersistentVolumeClaims(namespace).Patch(ctx, pvcName, types.JSONPatchType, payloadBytes, metav1.PatchOptions{})
 	if err != nil {
-		return admission.Allowed(fmt.Sprintf("Label addition to %s failed.", pvcName))
+		podwebhooklog.Error(err, fmt.Sprintf("Label addition to %s failed.", pvcName))
+		return admission.Allowed("")
 	}
 
 	return admission.Allowed(fmt.Sprintf("Label addition to %s succeeded.", pvcName))
