@@ -11,7 +11,7 @@ resources:
   controller: true
   domain: tech.zozo.com
   group: fluent-pvc-operator
-  kind: FluentPVCOperator
+  kind: FluentPVC
   path: github.com/st-tech/fluent-pvc-operator/api/v1alpha1
   version: v1alpha1
 - group: core

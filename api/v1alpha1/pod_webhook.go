@@ -16,7 +16,7 @@ import (
 //+kubebuilder:webhook:path=/mutate-core-v1-pod,mutating=true,failurePolicy=fail,sideEffects=None,groups=core,resources=pods,verbs=create;update,versions=v1,name=mpod.kb.io,admissionReviewVersions={v1,v1beta1}
 //+kubebuilder:webhook:path=/validate-core-v1-pod,mutating=false,failurePolicy=fail,sideEffects=None,groups=core,resources=pods,verbs=create;update,versions=v1,name=vpod.kb.io,admissionReviewVersions={v1,v1beta1}
 
-func (r *FluentPVCOperator) SetupWebhookWithManager(mgr ctrl.Manager) error {
+func SetupPodWebhookWithManager(mgr ctrl.Manager) error {
 	pv := NewPodValidator(mgr.GetClient())
 	mgr.GetWebhookServer().Register("/validate-core-v1-pod", &webhook.Admission{Handler: pv})
 	pm := NewPodMutator(mgr.GetClient())

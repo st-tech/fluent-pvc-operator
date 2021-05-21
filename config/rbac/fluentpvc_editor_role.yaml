@@ -1,13 +1,13 @@
-# permissions for end users to edit fluentpvcoperators.
+# permissions for end users to edit fluentpvcs.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: fluentpvcoperator-editor-role
+  name: fluentpvc-editor-role
 rules:
 - apiGroups:
   - fluent-pvc-operator.tech.zozo.com
   resources:
-  - fluentpvcoperators
+  - fluentpvcs
   verbs:
   - create
   - delete
@@ -19,6 +19,6 @@ rules:
 - apiGroups:
   - fluent-pvc-operator.tech.zozo.com
   resources:
-  - fluentpvcoperators/status
+  - fluentpvcs/status
   verbs:
   - get

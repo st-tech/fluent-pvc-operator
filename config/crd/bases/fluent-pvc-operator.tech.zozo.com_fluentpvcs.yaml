@@ -6,20 +6,20 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.4.1
   creationTimestamp: null
-  name: fluentpvcoperators.fluent-pvc-operator.tech.zozo.com
+  name: fluentpvcs.fluent-pvc-operator.tech.zozo.com
 spec:
   group: fluent-pvc-operator.tech.zozo.com
   names:
-    kind: FluentPVCOperator
-    listKind: FluentPVCOperatorList
-    plural: fluentpvcoperators
-    singular: fluentpvcoperator
+    kind: FluentPVC
+    listKind: FluentPVCList
+    plural: fluentpvcs
+    singular: fluentpvc
   scope: Namespaced
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: FluentPVCOperator is the Schema for the fluentpvcoperators API
+        description: FluentPVC is the Schema for the fluentpvcs API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -34,15 +34,15 @@ spec:
           metadata:
             type: object
           spec:
-            description: FluentPVCOperatorSpec defines the desired state of FluentPVCOperator
+            description: FluentPVCSpec defines the desired state of FluentPVC
             properties:
               foo:
-                description: Foo is an example field of FluentPVCOperator. Edit fluentpvcoperator_types.go
+                description: Foo is an example field of FluentPVC. Edit fluentpvc_types.go
                   to remove/update
                 type: string
             type: object
           status:
-            description: FluentPVCOperatorStatus defines the observed state of FluentPVCOperator
+            description: FluentPVCStatus defines the observed state of FluentPVC
             type: object
         type: object
     served: true

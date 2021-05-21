@@ -62,16 +62,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controllers.FluentPVCOperatorReconciler{
+	if err = (&controllers.FluentPVCReconciler{
 		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("FluentPVCOperator"),
+		Log:    ctrl.Log.WithName("controllers").WithName("FluentPVC"),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "FluentPVCOperator")
+		setupLog.Error(err, "unable to create controller", "controller", "FluentPVC")
 		os.Exit(1)
 	}
-	if err = (&fluentpvcoperatorv1alpha1.FluentPVCOperator{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "FluentPVCOperator")
+	if err = fluentpvcoperatorv1alpha1.SetupPodWebhookWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create webhook", "webhook", "Pod")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder

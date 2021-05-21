@@ -9,7 +9,7 @@ rules:
 - apiGroups:
   - fluent-pvc-operator.tech.zozo.com
   resources:
-  - fluentpvcoperators
+  - fluentpvcs
   verbs:
   - create
   - delete
@@ -21,13 +21,13 @@ rules:
 - apiGroups:
   - fluent-pvc-operator.tech.zozo.com
   resources:
-  - fluentpvcoperators/finalizers
+  - fluentpvcs/finalizers
   verbs:
   - update
 - apiGroups:
   - fluent-pvc-operator.tech.zozo.com
   resources:
-  - fluentpvcoperators/status
+  - fluentpvcs/status
   verbs:
   - get
   - patch
