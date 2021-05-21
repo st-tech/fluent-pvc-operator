@@ -144,7 +144,7 @@ spec:
                 type: string
               pvcFinalizerFluentdRpcPort:
                 description: Port for the sidecar fluentd RPC.
-                type: string
+                type: int64
               pvcFinalizerPodSpecTemplate:
                 description: Pod spec template to finalize PVCs.
                 properties:
@@ -7369,7 +7369,7 @@ spec:
                 type: string
               sidecarFluentdRpcPort:
                 description: Port for the sidecar fluentd RPC.
-                type: string
+                type: int64
             required:
             - pvcFinalizerFluentdContainerName
             - pvcFinalizerFluentdRpcPort

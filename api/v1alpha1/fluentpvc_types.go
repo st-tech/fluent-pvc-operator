@@ -15,7 +15,7 @@ type FluentPVCSpec struct {
 	PVCMountPath string `json:"pvcMountPath"`
 	// Common environment variables to inject into all containers.
 	//+optional
-	CommonEnv corev1.EnvVar `json:"commonEnv,omitempty"`
+	CommonEnv []corev1.EnvVar `json:"commonEnv,omitempty"`
 	// Sidecare containers templates that must include a fluentd definition.
 	//+kubebuiler:validation:Required
 	//+kubebuiler:validation:MinItems=1
@@ -25,7 +25,7 @@ type FluentPVCSpec struct {
 	SidecarFluentdContainerName string `json:"sidecarFluentdContainerName"`
 	// Port for the sidecar fluentd RPC.
 	//+kubebuiler:validation:Required
-	SidecarFluentdRpcPort string `json:"sidecarFluentdRpcPort"`
+	SidecarFluentdRpcPort int64 `json:"sidecarFluentdRpcPort"`
 	// Pod spec template to finalize PVCs.
 	//+kubebuiler:validation:Required
 	PVCFinalizerPodSpecTemplate corev1.PodSpec `json:"pvcFinalizerPodSpecTemplate"`
@@ -34,7 +34,7 @@ type FluentPVCSpec struct {
 	PVCFinalizerFluentdContainerName string `json:"pvcFinalizerFluentdContainerName"`
 	// Port for the sidecar fluentd RPC.
 	//+kubebuiler:validation:Required
-	PVCFinalizerFluentdRpcPort string `json:"pvcFinalizerFluentdRpcPort"`
+	PVCFinalizerFluentdRpcPort int64 `json:"pvcFinalizerFluentdRpcPort"`
 }
 
 // FluentPVCStatus defines the observed state of FluentPVC
