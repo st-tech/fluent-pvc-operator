@@ -23,7 +23,6 @@ webhooks:
     - v1
     operations:
     - CREATE
-    - UPDATE
     resources:
     - pods
   sideEffects: None
@@ -72,7 +71,6 @@ webhooks:
     - v1
     operations:
     - CREATE
-    - UPDATE
     resources:
     - pods
   sideEffects: None

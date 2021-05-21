@@ -7,9 +7,11 @@ import (
 	"math/rand"
 	"net/http"
 
+	"gomodules.xyz/jsonpatch/v2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -21,8 +23,8 @@ import (
 
 var podwebhooklog = logf.Log.WithName("pod-webhook")
 
-//+kubebuilder:webhook:path=/mutate-core-v1-pod,mutating=true,failurePolicy=fail,sideEffects=None,groups=core,resources=pods,verbs=create;update,versions=v1,name=mpod.kb.io,admissionReviewVersions={v1,v1beta1}
-//+kubebuilder:webhook:path=/validate-core-v1-pod,mutating=false,failurePolicy=fail,sideEffects=None,groups=core,resources=pods,verbs=create;update,versions=v1,name=vpod.kb.io,admissionReviewVersions={v1,v1beta1}
+//+kubebuilder:webhook:path=/mutate-core-v1-pod,mutating=true,failurePolicy=fail,sideEffects=None,groups=core,resources=pods,verbs=create,versions=v1,name=mpod.kb.io,admissionReviewVersions={v1,v1beta1}
+//+kubebuilder:webhook:path=/validate-core-v1-pod,mutating=false,failurePolicy=fail,sideEffects=None,groups=core,resources=pods,verbs=create,versions=v1,name=vpod.kb.io,admissionReviewVersions={v1,v1beta1}
 //+kubebuilder:webhook:path=/mutate-ondelete-core-v1-pod,mutating=true,failurePolicy=fail,sideEffects=None,groups=core,resources=pods,verbs=delete,versions=v1,name=mdpod.kb.io,admissionReviewVersions={v1,v1beta1}
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz0123456789")
@@ -43,13 +45,13 @@ func PodAdmissionResponse(pod *corev1.Pod, req admission.Request) admission.Resp
 	return admission.PatchResponseFromRaw(req.Object.Raw, marshaledPod)
 }
 
-func (r *FluentPVCOperator) SetupWebhookWithManager(mgr ctrl.Manager) error {
+func SetupPodWebhookWithManager(mgr ctrl.Manager) error {
 	pv := NewPodValidator(mgr.GetClient())
 	mgr.GetWebhookServer().Register("/validate-core-v1-pod", &webhook.Admission{Handler: pv})
-	pm := NewPodMutator(mgr.GetClient())
-	mgr.GetWebhookServer().Register("/mutate-core-v1-pod", &webhook.Admission{Handler: pm})
-	pmd := NewpodMutatorOnDelete(mgr.GetClient())
-	mgr.GetWebhookServer().Register("/mutate-ondelete-core-v1-pod", &webhook.Admission{Handler: pmd})
+	pmc := NewPodOnCreationMutator(mgr.GetClient())
+	mgr.GetWebhookServer().Register("/mutate-on-creation-core-v1-pod", &webhook.Admission{Handler: pmc})
+	pmd := NewpodOnDeletionMutator(mgr.GetClient())
+	mgr.GetWebhookServer().Register("/mutate-on-deletion-core-v1-pod", &webhook.Admission{Handler: pmd})
 	return nil
 }
 
@@ -58,7 +60,7 @@ type podMutator struct {
 	decoder *admission.Decoder
 }
 
-func NewPodMutator(c client.Client) admission.Handler {
+func NewPodOnCreationMutator(c client.Client) admission.Handler {
 	return &podMutator{Client: c}
 }
 
@@ -69,8 +71,10 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
+	podPatched := pod.DeepCopy()
+
 	if pod.Annotations == nil {
-		pod.Annotations = map[string]string{}
+		podPatched.Annotations = map[string]string{}
 	}
 	if pod.Annotations["fluent-pvc.enabled"] != "true" {
 		podwebhooklog.Info(fmt.Sprintf("Pod: %s is not a target for fluent-pvc.", pod.Name))
@@ -83,7 +87,7 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 	if pod.Annotations["fluent-pvc.storage-size"] == "" {
 		// TODO: Fetch default storage size from FluentPVCOperator
 		// Set default storage size if pod annotation is not exist
-		pod.Annotations["fluent-pvc.storage-size"] = "8Gi"
+		podPatched.Annotations["fluent-pvc.storage-size"] = "8Gi"
 	}
 
 	config, err := rest.InClusterConfig()
@@ -113,7 +117,7 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 			Resources: corev1.ResourceRequirements{
 				Requests: corev1.ResourceList{
 					corev1.ResourceStorage: resource.MustParse(
-						pod.Annotations["fluent-pvc.storage-size"],
+						podPatched.Annotations["fluent-pvc.storage-size"],
 					),
 				},
 			},
@@ -136,13 +140,12 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 			},
 		},
 	}
-	pod.Spec.Volumes = append(pod.Spec.Volumes, pvcVolume)
+	podPatched.Spec.Volumes = append(podPatched.Spec.Volumes, pvcVolume)
 
-	pod.Annotations["fluent-pvc.on-create.processed"] = "true"
-	pod.Annotations["fluent-pvc.pod-name"] = pod.Name
-	pod.Annotations["fluent-pvc.pvc-name"] = pvcName
+	podPatched.Annotations["fluent-pvc.on-create.processed"] = "true"
+	podPatched.Annotations["fluent-pvc.pod-name"] = pod.Name
+	podPatched.Annotations["fluent-pvc.pvc-name"] = pvcName
 
-	podPatched := pod.DeepCopy()
 	for i := range pod.Spec.Containers {
 		podPatched.Spec.Containers[i].VolumeMounts = append(podPatched.Spec.Containers[i].VolumeMounts, corev1.VolumeMount{
 			Name:      "fluent-pvc",
@@ -162,14 +165,14 @@ type podMutatorOnDelete struct {
 	decoder *admission.Decoder
 }
 
-func NewpodMutatorOnDelete(c client.Client) admission.Handler {
+func NewpodOnDeletionMutator(c client.Client) admission.Handler {
 	return &podMutatorOnDelete{Client: c}
 }
 
 func (v *podMutatorOnDelete) Handle(ctx context.Context, req admission.Request) admission.Response {
 	pod := &corev1.Pod{}
 
-	err := v.decoder.Decode(req, pod)
+	err := v.decoder.DecodeRaw(req.OldObject, pod)
 	if err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
@@ -178,12 +181,13 @@ func (v *podMutatorOnDelete) Handle(ctx context.Context, req admission.Request) 
 		pod.Annotations = map[string]string{}
 	}
 	if pod.Annotations["fluent-pvc.enabled"] != "true" {
-		podwebhooklog.Info(fmt.Sprintf("Pod: %s is not a target for fluent-pvc.", pod.Name))
-		return PodAdmissionResponse(pod, req)
+		return admission.Allowed(fmt.Sprintf("Pod: %s is not a target for fluent-pvc.", pod.Name))
 	}
 	if pod.Annotations["fluent-pvc.on-create.processed"] != "true" {
-		podwebhooklog.Info(fmt.Sprintf("fluent-pvc is not exist for Pod: %s", pod.Name))
-		return PodAdmissionResponse(pod, req)
+		return admission.Allowed(fmt.Sprintf("fluent-pvc is not exist for Pod: %s", pod.Name))
+	}
+	if pod.Annotations["fluent-pvc.pvc-name"] == "" {
+		return admission.Allowed(fmt.Sprintf("fluent-pvc is not specified for Pod: %s", pod.Name))
 	}
 
 	config, err := rest.InClusterConfig()
@@ -197,28 +201,41 @@ func (v *podMutatorOnDelete) Handle(ctx context.Context, req admission.Request) 
 
 	pvcClient := clientset.CoreV1().PersistentVolumeClaims(corev1.NamespaceDefault)
 
-	// pvcClient.Delete(ctx, pod.Annotations["fluent-pvc.pvc-name"], metav1.DeleteOptions{})
+	// pvc, err := pvcClient.Get(ctx, pod.Annotations["fluent-pvc.pvc-name"], metav1.GetOptions{})
+	// if err != nil {
+	// 	podwebhooklog.Info(fmt.Sprintf("pvcClient.Get Failed. %s", pod.Annotations["fluent-pvc.pvc-name"]))
+	// 	return admission.Errored(http.StatusInternalServerError, err)
+	// }
 
-	pvc, err := pvcClient.Get(ctx, pod.Annotations["fluent-pvc.pvc-name"], metav1.GetOptions{})
+	// marshaledOriginalPvc, err := json.Marshal(pvc)
+
+	// if pvc.Labels == nil {
+	// 	pvc.Labels = map[string]string{}
+	// }
+	// pvc.Labels["fluent-pvc.deleted"] = "true"
+
+	// marshaledPvc, err := json.Marshal(pvc)
+	// if err != nil {
+	// 	podwebhooklog.Info("json.Marshal Failed.")
+	// 	return admission.Errored(http.StatusInternalServerError, err)
+	// }
+
+	payload := []jsonpatch.Operation{{
+		Operation: "add",
+		Path:      "/metadata/annotations/fluent-pvc.deleted",
+		Value:     "true",
+	}}
+	payloadBytes, _ := json.Marshal(payload)
+
+	// patches, err := jsonpatch.CreatePatch(marshaledOriginalPvc, marshaledPvc)
+	// marshaledPatches, err := json.Marshal(patches)
+
+	_, err = pvcClient.Patch(ctx, pod.Annotations["fluent-pvc.pvc-name"], types.JSONPatchType, payloadBytes, metav1.PatchOptions{})
 	if err != nil {
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
-	if pvc.Labels == nil {
-		pvc.Labels = map[string]string{}
-	}
-	pvc.Labels["fluent-pvc.deleted"] = "true"
 
-	marshaledPvc, err := json.Marshal(pvc)
-	if err != nil {
-		return admission.Errored(http.StatusInternalServerError, err)
-	}
-
-	_, err = pvcClient.Patch(ctx, pod.Annotations["fluent-pvc.pvc-name"], "JSONPatchType", marshaledPvc, metav1.PatchOptions{})
-	if err != nil {
-		return admission.Errored(http.StatusInternalServerError, err)
-	}
-
-	return PodAdmissionResponse(pod, req)
+	return admission.Allowed(fmt.Sprintf("Label addition to %s is succeeded.", pod.Annotations["fluent-pvc.pvc-name"]))
 }
 
 func (v *podMutatorOnDelete) InjectDecoder(d *admission.Decoder) error {
