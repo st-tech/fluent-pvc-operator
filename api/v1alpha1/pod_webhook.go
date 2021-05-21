@@ -39,7 +39,7 @@ func SetupPodWebhookWithManager(mgr ctrl.Manager) error {
 	mgr.GetWebhookServer().Register("/validate-core-v1-pod", &webhook.Admission{Handler: pv})
 	pmc := NewPodOnCreationMutator(mgr.GetClient())
 	mgr.GetWebhookServer().Register("/mutate-on-creation-core-v1-pod", &webhook.Admission{Handler: pmc})
-	pmd := NewpodOnDeletionMutator(mgr.GetClient())
+	pmd := NewPodOnDeletionMutator(mgr.GetClient())
 	mgr.GetWebhookServer().Register("/mutate-on-deletion-core-v1-pod", &webhook.Admission{Handler: pmd})
 	return nil
 }
@@ -86,8 +86,6 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
 
-	pvcClient := clientset.CoreV1().PersistentVolumeClaims(corev1.NamespaceDefault)
-
 	// TODO: Fix storage class name to custom storage class
 	storageClassName := "standard"
 	pvcName := "fluent-pvc-" + pod.Name + "-" + RandStringRunes(8)
@@ -113,7 +111,7 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 	}
 
 	fmt.Println("Creating PVC...")
-	pvcResult, err := pvcClient.Create(ctx, pvc, metav1.CreateOptions{})
+	pvcResult, err := clientset.CoreV1().PersistentVolumeClaims(pod.Namespace).Create(ctx, pvc, metav1.CreateOptions{})
 	if err != nil {
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
@@ -130,8 +128,6 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 	podPatched.Spec.Volumes = append(podPatched.Spec.Volumes, pvcVolume)
 
 	podPatched.Annotations["fluent-pvc.on-create.processed"] = "true"
-	// podPatched.Annotations["fluent-pvc.pod-name"] = pod.Name
-	// podPatched.Annotations["fluent-pvc.pvc-name"] = pvcName
 
 	for i := range pod.Spec.Containers {
 		podPatched.Spec.Containers[i].VolumeMounts = append(podPatched.Spec.Containers[i].VolumeMounts, corev1.VolumeMount{
@@ -152,7 +148,7 @@ type podMutatorOnDelete struct {
 	decoder *admission.Decoder
 }
 
-func NewpodOnDeletionMutator(c client.Client) admission.Handler {
+func NewPodOnDeletionMutator(c client.Client) admission.Handler {
 	return &podMutatorOnDelete{Client: c}
 }
 
@@ -173,9 +169,6 @@ func (v *podMutatorOnDelete) Handle(ctx context.Context, req admission.Request) 
 	if pod.Annotations["fluent-pvc.on-create.processed"] != "true" {
 		return admission.Allowed(fmt.Sprintf("fluent-pvc is not exist for Pod: %s", pod.Name))
 	}
-	// if pod.Annotations["fluent-pvc.pvc-name"] == "" {
-	// 	return admission.Allowed(fmt.Sprintf("fluent-pvc is not specified for Pod: %s", pod.Name))
-	// }
 
 	config, err := rest.InClusterConfig()
 	if err != nil {
@@ -186,33 +179,12 @@ func (v *podMutatorOnDelete) Handle(ctx context.Context, req admission.Request) 
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
 
-	pvcClient := clientset.CoreV1().PersistentVolumeClaims(corev1.NamespaceDefault)
-
-	// pvc, err := pvcClient.Get(ctx, pod.Annotations["fluent-pvc.pvc-name"], metav1.GetOptions{})
-	// if err != nil {
-	// 	podwebhooklog.Info(fmt.Sprintf("pvcClient.Get Failed. %s", pod.Annotations["fluent-pvc.pvc-name"]))
-	// 	return admission.Errored(http.StatusInternalServerError, err)
-	// }
-
-	// marshaledOriginalPvc, err := json.Marshal(pvc)
-
-	// if pvc.Labels == nil {
-	// 	pvc.Labels = map[string]string{}
-	// }
-	// pvc.Labels["fluent-pvc.deleted"] = "true"
-
-	// marshaledPvc, err := json.Marshal(pvc)
-	// if err != nil {
-	// 	podwebhooklog.Info("json.Marshal Failed.")
-	// 	return admission.Errored(http.StatusInternalServerError, err)
-	// }
-
 	labelSelector := &metav1.LabelSelector{
 		MatchLabels: map[string]string{
 			"fluent-pvc.pod-name": pod.Name,
 		},
 	}
-	pvcList, err := clientset.CoreV1().PersistentVolumeClaims(metav1.NamespaceAll).List(ctx, metav1.ListOptions{
+	pvcList, err := clientset.CoreV1().PersistentVolumeClaims(pod.Namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: metav1.FormatLabelSelector(labelSelector),
 	})
 	if err != nil {
@@ -222,15 +194,12 @@ func (v *podMutatorOnDelete) Handle(ctx context.Context, req admission.Request) 
 
 	payload := []jsonpatch.Operation{{
 		Operation: "add",
-		Path:      "/metadata/annotations/fluent-pvc.deleted",
+		Path:      "/metadata/labels/fluent-pvc.deleted",
 		Value:     "true",
 	}}
 	payloadBytes, _ := json.Marshal(payload)
 
-	// patches, err := jsonpatch.CreatePatch(marshaledOriginalPvc, marshaledPvc)
-	// marshaledPatches, err := json.Marshal(patches)
-
-	_, err = pvcClient.Patch(ctx, pvcName, types.JSONPatchType, payloadBytes, metav1.PatchOptions{})
+	_, err = clientset.CoreV1().PersistentVolumeClaims(pod.Namespace).Patch(ctx, pvcName, types.JSONPatchType, payloadBytes, metav1.PatchOptions{})
 	if err != nil {
 		return admission.Allowed(fmt.Sprintf("Label addition to %s failed.", pvcName))
 	}
