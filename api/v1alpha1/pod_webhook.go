@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"net/http"
 
 	"gomodules.xyz/jsonpatch/v2"
@@ -23,19 +22,9 @@ import (
 
 var podwebhooklog = logf.Log.WithName("pod-webhook")
 
-//+kubebuilder:webhook:path=/mutate-core-v1-pod,mutating=true,failurePolicy=fail,sideEffects=None,groups=core,resources=pods,verbs=create,versions=v1,name=mpod.kb.io,admissionReviewVersions={v1,v1beta1}
+//+kubebuilder:webhook:path=/mutate-on-creation-core-v1-pod,mutating=true,failurePolicy=fail,sideEffects=None,groups=core,resources=pods,verbs=create,versions=v1,name=mpod.kb.io,admissionReviewVersions={v1,v1beta1}
 //+kubebuilder:webhook:path=/validate-core-v1-pod,mutating=false,failurePolicy=fail,sideEffects=None,groups=core,resources=pods,verbs=create,versions=v1,name=vpod.kb.io,admissionReviewVersions={v1,v1beta1}
-//+kubebuilder:webhook:path=/mutate-ondelete-core-v1-pod,mutating=true,failurePolicy=fail,sideEffects=None,groups=core,resources=pods,verbs=delete,versions=v1,name=mdpod.kb.io,admissionReviewVersions={v1,v1beta1}
-
-var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz0123456789")
-
-func RandStringRunes(n int) string {
-	b := make([]rune, n)
-	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
-	}
-	return string(b)
-}
+//+kubebuilder:webhook:path=/mutate-on-deletion-core-v1-pod,mutating=true,failurePolicy=fail,sideEffects=None,groups=core,resources=pods,verbs=delete,versions=v1,name=mdpod.kb.io,admissionReviewVersions={v1,v1beta1}
 
 func PodAdmissionResponse(pod *corev1.Pod, req admission.Request) admission.Response {
 	marshaledPod, err := json.Marshal(pod)
@@ -77,12 +66,10 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 		podPatched.Annotations = map[string]string{}
 	}
 	if pod.Annotations["fluent-pvc.enabled"] != "true" {
-		podwebhooklog.Info(fmt.Sprintf("Pod: %s is not a target for fluent-pvc.", pod.Name))
-		return PodAdmissionResponse(pod, req)
+		return admission.Allowed(fmt.Sprintf("Pod: %s is not a target for fluent-pvc.", pod.Name))
 	}
 	if pod.Annotations["fluent-pvc.on-create.processed"] == "true" {
-		podwebhooklog.Info(fmt.Sprintf("fluent-pvc is already exist for Pod: %s", pod.Name))
-		return PodAdmissionResponse(pod, req)
+		return admission.Allowed(fmt.Sprintf("fluent-pvc is already exist for Pod: %s", pod.Name))
 	}
 	if pod.Annotations["fluent-pvc.storage-size"] == "" {
 		// TODO: Fetch default storage size from FluentPVCOperator
@@ -92,7 +79,7 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		panic(err.Error())
+		return admission.Errored(http.StatusInternalServerError, err)
 	}
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
@@ -108,7 +95,7 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: pvcName,
-			Annotations: map[string]string{
+			Labels: map[string]string{
 				"fluent-pvc.pod-name": pod.Name,
 			},
 		},
@@ -143,8 +130,8 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 	podPatched.Spec.Volumes = append(podPatched.Spec.Volumes, pvcVolume)
 
 	podPatched.Annotations["fluent-pvc.on-create.processed"] = "true"
-	podPatched.Annotations["fluent-pvc.pod-name"] = pod.Name
-	podPatched.Annotations["fluent-pvc.pvc-name"] = pvcName
+	// podPatched.Annotations["fluent-pvc.pod-name"] = pod.Name
+	// podPatched.Annotations["fluent-pvc.pvc-name"] = pvcName
 
 	for i := range pod.Spec.Containers {
 		podPatched.Spec.Containers[i].VolumeMounts = append(podPatched.Spec.Containers[i].VolumeMounts, corev1.VolumeMount{
@@ -186,13 +173,13 @@ func (v *podMutatorOnDelete) Handle(ctx context.Context, req admission.Request) 
 	if pod.Annotations["fluent-pvc.on-create.processed"] != "true" {
 		return admission.Allowed(fmt.Sprintf("fluent-pvc is not exist for Pod: %s", pod.Name))
 	}
-	if pod.Annotations["fluent-pvc.pvc-name"] == "" {
-		return admission.Allowed(fmt.Sprintf("fluent-pvc is not specified for Pod: %s", pod.Name))
-	}
+	// if pod.Annotations["fluent-pvc.pvc-name"] == "" {
+	// 	return admission.Allowed(fmt.Sprintf("fluent-pvc is not specified for Pod: %s", pod.Name))
+	// }
 
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		panic(err.Error())
+		return admission.Errored(http.StatusInternalServerError, err)
 	}
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
@@ -220,6 +207,19 @@ func (v *podMutatorOnDelete) Handle(ctx context.Context, req admission.Request) 
 	// 	return admission.Errored(http.StatusInternalServerError, err)
 	// }
 
+	labelSelector := &metav1.LabelSelector{
+		MatchLabels: map[string]string{
+			"fluent-pvc.pod-name": pod.Name,
+		},
+	}
+	pvcList, err := clientset.CoreV1().PersistentVolumeClaims(metav1.NamespaceAll).List(ctx, metav1.ListOptions{
+		LabelSelector: metav1.FormatLabelSelector(labelSelector),
+	})
+	if err != nil {
+		return admission.Allowed(fmt.Sprintf("PVC for %s does not exist.", pod.Name))
+	}
+	pvcName := pvcList.Items[0].ObjectMeta.Name
+
 	payload := []jsonpatch.Operation{{
 		Operation: "add",
 		Path:      "/metadata/annotations/fluent-pvc.deleted",
@@ -230,12 +230,12 @@ func (v *podMutatorOnDelete) Handle(ctx context.Context, req admission.Request) 
 	// patches, err := jsonpatch.CreatePatch(marshaledOriginalPvc, marshaledPvc)
 	// marshaledPatches, err := json.Marshal(patches)
 
-	_, err = pvcClient.Patch(ctx, pod.Annotations["fluent-pvc.pvc-name"], types.JSONPatchType, payloadBytes, metav1.PatchOptions{})
+	_, err = pvcClient.Patch(ctx, pvcName, types.JSONPatchType, payloadBytes, metav1.PatchOptions{})
 	if err != nil {
-		return admission.Errored(http.StatusInternalServerError, err)
+		return admission.Allowed(fmt.Sprintf("Label addition to %s failed.", pvcName))
 	}
 
-	return admission.Allowed(fmt.Sprintf("Label addition to %s is succeeded.", pod.Annotations["fluent-pvc.pvc-name"]))
+	return admission.Allowed(fmt.Sprintf("Label addition to %s succeeded.", pvcName))
 }
 
 func (v *podMutatorOnDelete) InjectDecoder(d *admission.Decoder) error {
