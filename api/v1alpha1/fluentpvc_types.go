@@ -10,6 +10,9 @@ type FluentPVCSpec struct {
 	// PVC spec template to inject into pod manifests.
 	//+kubebuiler:validation:Required
 	PVCSpecTemplate corev1.PersistentVolumeClaimSpec `json:"pvcSpecTemplate"`
+	// Name of the Volume to mount the PVC.
+	//+kubebuiler:validation:Required
+	PVCVolumeName string `json:"pvcVolumeName"`
 	// Path to mount the PVC.
 	//+kubebuiler:validation:Required
 	PVCMountPath string `json:"pvcMountPath"`

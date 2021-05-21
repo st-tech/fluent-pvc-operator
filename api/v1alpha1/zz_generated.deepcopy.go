@@ -73,7 +73,13 @@ func (in *FluentPVCList) DeepCopyObject() runtime.Object {
 func (in *FluentPVCSpec) DeepCopyInto(out *FluentPVCSpec) {
 	*out = *in
 	in.PVCSpecTemplate.DeepCopyInto(&out.PVCSpecTemplate)
-	in.CommonEnv.DeepCopyInto(&out.CommonEnv)
+	if in.CommonEnv != nil {
+		in, out := &in.CommonEnv, &out.CommonEnv
+		*out = make([]v1.EnvVar, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
 	if in.SidecarContainersTemplate != nil {
 		in, out := &in.SidecarContainersTemplate, &out.SidecarContainersTemplate
 		*out = make([]v1.Container, len(*in))

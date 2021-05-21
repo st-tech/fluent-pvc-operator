@@ -6,13 +6,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"gomodules.xyz/jsonpatch/v2"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
+	"k8s.io/apimachinery/pkg/labels"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -62,68 +58,79 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 
 	podPatched := pod.DeepCopy()
 
-	if pod.Annotations == nil {
-		podPatched.Annotations = map[string]string{}
-	}
-	if pod.Annotations["fluent-pvc.enabled"] != "true" {
+	if pod.Annotations == nil || pod.Annotations["fluent-pvc.enabled"] != "true" {
 		return admission.Allowed(fmt.Sprintf("Pod: %s is not a target for fluent-pvc.", pod.Name))
 	}
+	// TODO: annotationsではなく、podのmanifestにpvcが既に存在しているかを見に行くようにする
 	if pod.Annotations["fluent-pvc.on-create.processed"] == "true" {
 		return admission.Allowed(fmt.Sprintf("fluent-pvc is already exist for Pod: %s", pod.Name))
 	}
-	if pod.Annotations["fluent-pvc.storage-size"] == "" {
-		// TODO: Fetch default storage size from FluentPVCOperator
-		// Set default storage size if pod annotation is not exist
-		podPatched.Annotations["fluent-pvc.storage-size"] = "8Gi"
-	}
+	// if pod.Annotations["fluent-pvc.storage-size"] == "" {
+	// 	// TODO: Fetch default storage size from FluentPVCOperator
+	// 	// Set default storage size if pod annotation is not exist
+	// 	podPatched.Annotations["fluent-pvc.storage-size"] = "8Gi"
+	// }
 
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		return admission.Errored(http.StatusInternalServerError, err)
-	}
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return admission.Errored(http.StatusInternalServerError, err)
-	}
+	// config, err := rest.InClusterConfig()
+	// if err != nil {
+	// 	return admission.Errored(http.StatusInternalServerError, err)
+	// }
+	// clientset, err := kubernetes.NewForConfig(config)
+	// if err != nil {
+	// 	return admission.Errored(http.StatusInternalServerError, err)
+	// }
+
+	fpvc := &FluentPVC{}
+	m.Client.Get(ctx, client.ObjectKey{
+		Namespace: "",
+		Name:      "fluent-pvc-sample",
+	}, fpvc)
+	// TODO: fpvcが存在しなかった時の処理が必要
 
 	// TODO: Fix storage class name to custom storage class
-	storageClassName := "standard"
+	// storageClassName := "standard"
 	pvcName := "fluent-pvc-" + pod.Name + "-" + RandStringRunes(8)
-
-	pvc := &corev1.PersistentVolumeClaim{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: pvcName,
-			Labels: map[string]string{
-				"fluent-pvc.pod-name": pod.Name,
-			},
-		},
-		Spec: corev1.PersistentVolumeClaimSpec{
-			AccessModes: []corev1.PersistentVolumeAccessMode{"ReadWriteOnce"},
-			Resources: corev1.ResourceRequirements{
-				Requests: corev1.ResourceList{
-					corev1.ResourceStorage: resource.MustParse(
-						podPatched.Annotations["fluent-pvc.storage-size"],
-					),
-				},
-			},
-			StorageClassName: &storageClassName,
-		},
-	}
 
 	namespace := pod.Namespace
 	if pod.Namespace == "" {
 		namespace = corev1.NamespaceDefault
 	}
 
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      pvcName,
+			Namespace: namespace,
+			Labels: map[string]string{
+				"fluent-pvc.pod-name": pod.Name,
+			},
+		},
+		Spec: fpvc.Spec.PVCSpecTemplate,
+		// Spec: corev1.PersistentVolumeClaimSpec{
+		// 	AccessModes: []corev1.PersistentVolumeAccessMode{"ReadWriteOnce"},
+		// 	Resources: corev1.ResourceRequirements{
+		// 		Requests: corev1.ResourceList{
+		// 			corev1.ResourceStorage: resource.MustParse(
+		// 				podPatched.Annotations["fluent-pvc.storage-size"],
+		// 			),
+		// 		},
+		// 	},
+		// 	StorageClassName: &storageClassName,
+		// },
+	}
+
+	// m.Client.Patch()
+	// m.Client.List()
+
 	podwebhooklog.Info("Creating PVC...")
-	pvcResult, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Create(ctx, pvc, metav1.CreateOptions{})
+	err = m.Client.Create(ctx, pvc)
+	// pvcResult, err := clientset.CoreV1().PersistentVolumeClaims(namespace).Create(ctx, pvc, metav1.CreateOptions{})
 	if err != nil {
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
-	podwebhooklog.Info("Created PVC %q.\n", pvcResult.GetObjectMeta().GetName())
+	// podwebhooklog.Info("Created PVC %q.\n", pvcResult.GetObjectMeta().GetName())
 
 	pvcVolume := corev1.Volume{
-		Name: "fluent-pvc",
+		Name: fpvc.Spec.PVCVolumeName,
 		VolumeSource: corev1.VolumeSource{
 			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
 				ClaimName: pvcName,
@@ -136,10 +143,12 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 
 	for i := range pod.Spec.Containers {
 		podPatched.Spec.Containers[i].VolumeMounts = append(podPatched.Spec.Containers[i].VolumeMounts, corev1.VolumeMount{
-			Name:      "fluent-pvc",
-			MountPath: "/tmp/fluent-pvc",
+			Name:      fpvc.Spec.PVCVolumeName,
+			MountPath: fpvc.Spec.PVCMountPath,
 		})
 	}
+
+	podPatched.Spec.Containers = append(podPatched.Spec.Containers, fpvc.Spec.SidecarContainersTemplate...)
 
 	return PodAdmissionResponse(podPatched, req)
 }
@@ -165,38 +174,46 @@ func (v *podMutatorOnDelete) Handle(ctx context.Context, req admission.Request) 
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
-	if pod.Annotations == nil {
-		pod.Annotations = map[string]string{}
-	}
-	if pod.Annotations["fluent-pvc.enabled"] != "true" {
+	if pod.Annotations == nil || pod.Annotations["fluent-pvc.enabled"] != "true" {
 		return admission.Allowed(fmt.Sprintf("Pod: %s is not a target for fluent-pvc.", pod.Name))
 	}
+	// TODO: 下の方でやってる pvc.List() を使う or podのmanifestにPVCが存在するかどうかで処理の有無を決定する
 	if pod.Annotations["fluent-pvc.on-create.processed"] != "true" {
 		return admission.Allowed(fmt.Sprintf("fluent-pvc is not exist for Pod: %s", pod.Name))
 	}
 
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		return admission.Errored(http.StatusInternalServerError, err)
-	}
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return admission.Errored(http.StatusInternalServerError, err)
-	}
+	// config, err := rest.InClusterConfig()
+	// if err != nil {
+	// 	return admission.Errored(http.StatusInternalServerError, err)
+	// }
+	// clientset, err := kubernetes.NewForConfig(config)
+	// if err != nil {
+	// 	return admission.Errored(http.StatusInternalServerError, err)
+	// }
 
 	namespace := pod.Namespace
 	if pod.Namespace == "" {
 		namespace = corev1.NamespaceDefault
 	}
 
-	labelSelector := &metav1.LabelSelector{
-		MatchLabels: map[string]string{
-			"fluent-pvc.pod-name": pod.Name,
-		},
-	}
-	pvcList, err := clientset.CoreV1().PersistentVolumeClaims(namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: metav1.FormatLabelSelector(labelSelector),
+	// labelSelector := &metav1.LabelSelector{
+	// 	MatchLabels: map[string]string{
+	// 		"fluent-pvc.pod-name": pod.Name,
+	// 	},
+	// }
+
+	var pvcList corev1.PersistentVolumeClaimList
+	// pvcList := &[]corev1.PersistentVolumeClaim{}
+
+	err = v.Client.List(ctx, &pvcList, &client.ListOptions{
+		Namespace:     namespace,
+		LabelSelector: labels.SelectorFromSet(map[string]string{"fluent-pvc.pod-name": pod.Name}),
 	})
+
+	// pvcList, err := clientset.CoreV1().PersistentVolumeClaims(namespace).List(ctx, metav1.ListOptions{
+	// 	LabelSelector: metav1.FormatLabelSelector(labelSelector),
+	// })
+
 	if err != nil {
 		podwebhooklog.Error(err, fmt.Sprintf("PersistentVolumeClaims.List() for %s failed.", pod.Name))
 		return admission.Allowed("")
@@ -206,14 +223,24 @@ func (v *podMutatorOnDelete) Handle(ctx context.Context, req admission.Request) 
 	}
 	pvcName := pvcList.Items[0].ObjectMeta.Name
 
-	payload := []jsonpatch.Operation{{
-		Operation: "add",
-		Path:      "/metadata/labels/fluent-pvc.deleted",
-		Value:     "true",
-	}}
-	payloadBytes, _ := json.Marshal(payload)
+	// payload := []jsonpatch.Operation{{
+	// 	Operation: "add",
+	// 	Path:      "/metadata/labels/fluent-pvc.deleted",
+	// 	Value:     "true",
+	// }}
+	// payloadBytes, _ := json.Marshal(payload)
 
-	_, err = clientset.CoreV1().PersistentVolumeClaims(namespace).Patch(ctx, pvcName, types.JSONPatchType, payloadBytes, metav1.PatchOptions{})
+	patchPvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				"fluent-pvc.deleted": "true",
+			},
+		},
+	}
+
+	err = v.Client.Patch(ctx, patchPvc, client.Apply)
+
+	// _, err = clientset.CoreV1().PersistentVolumeClaims(namespace).Patch(ctx, pvcName, types.JSONPatchType, payloadBytes, metav1.PatchOptions{})
 	if err != nil {
 		podwebhooklog.Error(err, fmt.Sprintf("Label addition to %s failed.", pvcName))
 		return admission.Allowed("")
