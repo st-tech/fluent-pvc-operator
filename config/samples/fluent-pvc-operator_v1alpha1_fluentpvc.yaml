@@ -1,7 +1,131 @@
 apiVersion: fluent-pvc-operator.tech.zozo.com/v1alpha1
 kind: FluentPVC
 metadata:
-  name: fluentpvc-sample
+  name: fluent-pvc-sample
 spec:
-  # Add fields here
-  foo: bar
+  pvcSpecTemplate:
+    accessModes: [ "ReadWriteOnce" ]
+    storageClassName: fast
+    resources:
+      requests:
+        storage: 1Gi
+  pvcMountPath: /event-log
+  commonEnv:
+    - name: FLUENTD_COLLECT_ROOT_DIR
+      value: /event-log
+    - name: POD_NAMESPACE
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.namespace
+    - name: POD_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.name
+    - name: POD_IP
+      valueFrom:
+        fieldRef:
+          fieldPath: status.podIP
+    - name: NODE_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: spec.nodeName
+  sidecarContainersTemplate:
+    - name: zozo-k8s-sidecar-fluentd
+      image: zozo-k8s-sidecar-fluentd:latest
+      env:
+        - name: GCLOUD_KEYFILE
+          value: /fluentd/secret/google_credetials.json
+      startupProbe:
+        httpGet:
+          path: /api/plugins.json
+          port: 24220
+        initialDelaySeconds: 1
+        periodSeconds: 1
+        timeoutSeconds: 1
+        successThreshold: 1
+        failureThreshold: 150
+      livenessProbe:
+        exec:
+          command: ["/liveness_probe.sh"]
+        initialDelaySeconds: 1
+        periodSeconds: 60
+        timeoutSeconds: 5
+        successThreshold: 1
+        failureThreshold: 1
+      lifecycle:
+        preStop:
+          exec:
+            command: ["sleep", "60"]
+      imagePullPolicy: Always
+      resources:
+        limits:
+          cpu: '1'
+          memory: 1Gi
+      volumeMounts:
+        - mountPath: /fluentd/secret
+          name: gcp-secret
+  sidecarFluentdContainerName: zozo-k8s-sidecar-fluentd
+  sidecarFluentdRpcPort: 8080
+  pvcFinalizerPodSpecTemplate:
+    serviceAccountName: sample-app
+    containers:
+      - name: zozo-k8s-sidecar-fluentd
+        image: zozo-k8s-sidecar-fluentd:latest
+        env:
+          - name: GCLOUD_KEYFILE
+            value: /fluentd/secret/google_credetials.json
+        startupProbe:
+          httpGet:
+            path: /api/plugins.json
+            port: 24220
+          initialDelaySeconds: 1
+          periodSeconds: 1
+          timeoutSeconds: 1
+          successThreshold: 1
+          failureThreshold: 150
+        lifecycle:
+          preStop:
+            exec:
+              command:
+                - bash
+                - -c
+                - |
+                  echo "[INFO] Check the stuck of fluentd processing."
+                  while true; do
+                      echo '{"_heatbeat_log":true}' > ${FLUENTD_HEATBEAT_LOG_DIR}/log.$(date +%Y%m%d%H%M%S)
+                      touch -d "${FLUENTD_STUCK_THRESHOLD_SECONDS} seconds ago" /tmp/marker-stuck
+                      if [[ -z "$(find ${FLUENTD_BUFFER_DIR} -type d -newer /tmp/marker-stuck -print -quit)" ]]; then
+                          echo "[WARNING] Processing is stuck ${FLUENTD_STUCK_THRESHOLD_SECONDS} seconds."
+                          sleep 1
+                      else
+                          break
+                      fi
+                  done
+
+                  echo "[INFO] Check the buffer size."
+                  while true; do
+                      FLUENTD_BUFFER_SIZE=$(du -bs ${FLUENTD_BUFFER_DIR} | cut -f1)
+                      if (( ${FLUENTD_BUFFER_SIZE} > ${FLUENTD_BUFFER_SIZE_THRESHOLD_BYTES} )); then
+                          echo "[WARNING] Fluentd buffer size: '${FLUENTD_BUFFER_SIZE}' is larger than '${FLUENTD_BUFFER_SIZE_THRESHOLD_BYTES}'."
+                          sleep 1
+                      else
+                          break
+                      fi
+                  done
+                  echo "[INFO] Wait ${FLUENTD_TAIL_REFRESH_INTERVAL} to collect all logs."
+                  sleep ${FLUENTD_TAIL_REFRESH_INTERVAL}
+        imagePullPolicy: Always
+        resources:
+          limits:
+            cpu: '1'
+            memory: 1Gi
+        volumeMounts:
+          - mountPath: /fluentd/secret
+            name: gcp-secret
+    volumes:
+      - name: gcp-secret
+        secret:
+          secretName: gcp-secret
+    terminationGracePeriodSeconds: 604800 # 7days
+  pvcFinalizerFluentdContainerName: zozo-k8s-sidecar-fluentd
+  pvcFinalizerFluentdRpcPort: 8080
