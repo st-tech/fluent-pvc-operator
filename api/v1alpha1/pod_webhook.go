@@ -10,6 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/config/v1alpha1"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -201,8 +202,6 @@ func (v *podMutatorOnDelete) Handle(ctx context.Context, req admission.Request) 
 		return admission.Allowed(fmt.Sprintf("fluent-pvc is not exist for Pod: %s", pod.Name))
 	}
 
-	pvc.Annotations["fluent-pvc-operator.tech.zozo.com/out-of-use"] = "true"
-
 	patchPvc := &corev1.PersistentVolumeClaim{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       pvc.Kind,
@@ -211,7 +210,7 @@ func (v *podMutatorOnDelete) Handle(ctx context.Context, req admission.Request) 
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        pvc.Name,
 			Namespace:   pvc.Namespace,
-			Annotations: pvc.Annotations,
+			Annotations: map[string]string{"fluent-pvc-operator.tech.zozo.com/out-of-use": "true"},
 		},
 	}
 
