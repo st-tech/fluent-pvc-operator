@@ -64,7 +64,7 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 
 	podPatched := pod.DeepCopy()
 
-	if pod.Annotations == nil || pod.Annotations["fluent-pvc-operator.tech.zozo.com/fluent-pvc-name"] == "" {
+	if _, ok := pod.Annotations["fluent-pvc-operator.tech.zozo.com/fluent-pvc-name"]; !ok {
 		return admission.Allowed(fmt.Sprintf("Pod: %s is not a target for fluent-pvc.", pod.Name))
 	}
 
@@ -76,29 +76,26 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 	for _, volume := range pod.Spec.Volumes {
 		if volume.PersistentVolumeClaim == nil {
 			continue
-		} else {
-			pvc := &corev1.PersistentVolumeClaim{}
-			err = m.Client.Get(ctx, client.ObjectKey{
-				Namespace: namespace,
-				Name:      volume.PersistentVolumeClaim.ClaimName,
-			}, pvc)
-			if err != nil {
-				return admission.Errored(http.StatusInternalServerError, err)
-			}
-			for _, ref := range pvc.OwnerReferences {
-				if isOwnerFluentPVC(&ref) {
-					return admission.Allowed(fmt.Sprintf("fluent-pvc is already exist for Pod: %s", pod.Name))
-				}
-			}
+		}
+		pvc := &corev1.PersistentVolumeClaim{}
+		err = m.Client.Get(ctx, client.ObjectKey{
+			Namespace: namespace,
+			Name:      volume.PersistentVolumeClaim.ClaimName,
+		}, pvc)
+		if err != nil {
+			return admission.Errored(http.StatusInternalServerError, err)
+		}
+		if isOwnerFluentPVC(metav1.GetControllerOf(pvc)) {
+			return admission.Allowed(fmt.Sprintf("fluent-pvc is already exist for Pod: %s", pod.Name))
 		}
 	}
 
+	// TODO: Consider too long pod name
 	pvcName := "fluent-pvc-" + pod.Name + "-" + RandStringRunes(8)
 
 	fpvc := &FluentPVC{}
 	err = m.Client.Get(ctx, client.ObjectKey{
-		Namespace: "",
-		Name:      pod.Annotations["fluent-pvc-operator.tech.zozo.com/fluent-pvc-name"],
+		Name: pod.Annotations["fluent-pvc-operator.tech.zozo.com/fluent-pvc-name"],
 	}, fpvc)
 	if err != nil {
 		return admission.Errored(http.StatusInternalServerError, err)
@@ -115,7 +112,10 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 		Spec: fpvc.Spec.PVCSpecTemplate,
 	}
 
-	ctrl.SetControllerReference(fpvc, pvc, m.Client.Scheme())
+	err = ctrl.SetControllerReference(fpvc, pvc, m.Client.Scheme())
+	if err != nil {
+		return admission.Errored(http.StatusInternalServerError, err)
+	}
 
 	podwebhooklog.Info("Creating PVC...")
 	err = m.Client.Create(ctx, pvc)
@@ -168,7 +168,7 @@ func (v *podMutatorOnDelete) Handle(ctx context.Context, req admission.Request) 
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
-	if pod.Annotations == nil || pod.Annotations["fluent-pvc-operator.tech.zozo.com/fluent-pvc-name"] != "true" {
+	if _, ok := pod.Annotations["fluent-pvc-operator.tech.zozo.com/fluent-pvc-name"]; !ok {
 		return admission.Allowed(fmt.Sprintf("Pod: %s is not a target for fluent-pvc.", pod.Name))
 	}
 
@@ -182,19 +182,17 @@ func (v *podMutatorOnDelete) Handle(ctx context.Context, req admission.Request) 
 	isPvcExist := false
 	for _, volume := range pod.Spec.Volumes {
 		if volume.PersistentVolumeClaim != nil {
+			refPvc := &corev1.PersistentVolumeClaim{}
 			err = v.Client.Get(ctx, client.ObjectKey{
 				Namespace: namespace,
 				Name:      volume.PersistentVolumeClaim.ClaimName,
-			}, pvc)
+			}, refPvc)
 			if err != nil {
 				return admission.Errored(http.StatusInternalServerError, err)
 			}
-			for _, ref := range pvc.OwnerReferences {
-				if isOwnerFluentPVC(&ref) {
-					isPvcExist = true
-				}
-			}
-			if isPvcExist {
+			if isOwnerFluentPVC(metav1.GetControllerOf(refPvc)) {
+				isPvcExist = true
+				pvc = refPvc
 				break
 			}
 		}
@@ -202,6 +200,8 @@ func (v *podMutatorOnDelete) Handle(ctx context.Context, req admission.Request) 
 	if !isPvcExist {
 		return admission.Allowed(fmt.Sprintf("fluent-pvc is not exist for Pod: %s", pod.Name))
 	}
+
+	pvc.Annotations["fluent-pvc-operator.tech.zozo.com/out-of-use"] = "true"
 
 	patchPvc := &corev1.PersistentVolumeClaim{
 		TypeMeta: metav1.TypeMeta{
@@ -211,7 +211,7 @@ func (v *podMutatorOnDelete) Handle(ctx context.Context, req admission.Request) 
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        pvc.Name,
 			Namespace:   pvc.Namespace,
-			Annotations: map[string]string{"fluent-pvc-operator.tech.zozo.com/out-of-use": "true"},
+			Annotations: pvc.Annotations,
 		},
 	}
 
