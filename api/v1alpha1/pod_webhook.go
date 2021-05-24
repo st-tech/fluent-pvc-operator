@@ -8,9 +8,9 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/config/v1alpha1"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -28,6 +28,12 @@ func PodAdmissionResponse(pod *corev1.Pod, req admission.Request) admission.Resp
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
 	return admission.PatchResponseFromRaw(req.Object.Raw, marshaledPod)
+}
+
+func isOwnerFluentPVC(owner *metav1.OwnerReference) bool {
+	return owner != nil &&
+		owner.APIVersion == v1alpha1.GroupVersion.String() &&
+		owner.Kind == "FluentPVC"
 }
 
 func SetupPodWebhookWithManager(mgr ctrl.Manager) error {
@@ -58,40 +64,52 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 
 	podPatched := pod.DeepCopy()
 
-	if pod.Annotations == nil || pod.Annotations["fluent-pvc.enabled"] != "true" {
+	if pod.Annotations == nil || pod.Annotations["fluent-pvc-operator.tech.zozo.com/fluent-pvc-name"] == "" {
 		return admission.Allowed(fmt.Sprintf("Pod: %s is not a target for fluent-pvc.", pod.Name))
 	}
-	for _, volume := range pod.Spec.Volumes {
-		if volume.PersistentVolumeClaim == nil {
-			continue
-		} else if true {
-			// TODO: OwnerReferenceでPVCがWebhookで作られたものかどうか確認する
-			return admission.Allowed(fmt.Sprintf("fluent-pvc is already exist for Pod: %s", pod.Name))
-		}
-	}
-
-	fpvc := &FluentPVC{}
-	m.Client.Get(ctx, client.ObjectKey{
-		Namespace: "",
-		Name:      "fluent-pvc-sample",
-	}, fpvc)
-	if fpvc.Name == "" {
-		return admission.Allowed("FluentPVC custom resource is not exist.")
-	}
-
-	pvcName := "fluent-pvc-" + pod.Name + "-" + RandStringRunes(8)
 
 	namespace := pod.Namespace
 	if pod.Namespace == "" {
 		namespace = corev1.NamespaceDefault
 	}
 
+	for _, volume := range pod.Spec.Volumes {
+		if volume.PersistentVolumeClaim == nil {
+			continue
+		} else {
+			pvc := &corev1.PersistentVolumeClaim{}
+			err = m.Client.Get(ctx, client.ObjectKey{
+				Namespace: namespace,
+				Name:      volume.PersistentVolumeClaim.ClaimName,
+			}, pvc)
+			if err != nil {
+				return admission.Errored(http.StatusInternalServerError, err)
+			}
+			for _, ref := range pvc.OwnerReferences {
+				if isOwnerFluentPVC(&ref) {
+					return admission.Allowed(fmt.Sprintf("fluent-pvc is already exist for Pod: %s", pod.Name))
+				}
+			}
+		}
+	}
+
+	pvcName := "fluent-pvc-" + pod.Name + "-" + RandStringRunes(8)
+
+	fpvc := &FluentPVC{}
+	err = m.Client.Get(ctx, client.ObjectKey{
+		Namespace: "",
+		Name:      pod.Annotations["fluent-pvc-operator.tech.zozo.com/fluent-pvc-name"],
+	}, fpvc)
+	if err != nil {
+		return admission.Errored(http.StatusInternalServerError, err)
+	}
+
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      pvcName,
 			Namespace: namespace,
-			Labels: map[string]string{
-				"fluent-pvc.pod-name": pod.Name,
+			Annotations: map[string]string{
+				"fluent-pvc-operator.tech.zozo.com/dedicated-pod": pod.Name,
 			},
 		},
 		Spec: fpvc.Spec.PVCSpecTemplate,
@@ -104,7 +122,7 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 	if err != nil {
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
-	podwebhooklog.Info("Created PVC %q.\n", pvc.GetObjectMeta().GetName())
+	podwebhooklog.Info(fmt.Sprintf("Created PVC %q.\n", pvc.GetObjectMeta().GetName()))
 
 	pvcVolume := corev1.Volume{
 		Name: fpvc.Spec.PVCVolumeName,
@@ -116,14 +134,15 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 	}
 	podPatched.Spec.Volumes = append(podPatched.Spec.Volumes, pvcVolume)
 
+	podPatched.Spec.Containers = append(podPatched.Spec.Containers, fpvc.Spec.SidecarContainersTemplate...)
+
 	for i := range pod.Spec.Containers {
 		podPatched.Spec.Containers[i].VolumeMounts = append(podPatched.Spec.Containers[i].VolumeMounts, corev1.VolumeMount{
 			Name:      fpvc.Spec.PVCVolumeName,
 			MountPath: fpvc.Spec.PVCMountPath,
 		})
+		podPatched.Spec.Containers[i].Env = fpvc.Spec.CommonEnv
 	}
-
-	podPatched.Spec.Containers = append(podPatched.Spec.Containers, fpvc.Spec.SidecarContainersTemplate...)
 
 	return PodAdmissionResponse(podPatched, req)
 }
@@ -149,12 +168,8 @@ func (v *podMutatorOnDelete) Handle(ctx context.Context, req admission.Request) 
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
-	if pod.Annotations == nil || pod.Annotations["fluent-pvc.enabled"] != "true" {
+	if pod.Annotations == nil || pod.Annotations["fluent-pvc-operator.tech.zozo.com/fluent-pvc-name"] != "true" {
 		return admission.Allowed(fmt.Sprintf("Pod: %s is not a target for fluent-pvc.", pod.Name))
-	}
-	// TODO: 下の方でやってる pvc.List() を使う or podのmanifestにPVCが存在するかどうかで処理の有無を決定する
-	if pod.Annotations["fluent-pvc.on-create.processed"] != "true" {
-		return admission.Allowed(fmt.Sprintf("fluent-pvc is not exist for Pod: %s", pod.Name))
 	}
 
 	namespace := pod.Namespace
@@ -162,37 +177,53 @@ func (v *podMutatorOnDelete) Handle(ctx context.Context, req admission.Request) 
 		namespace = corev1.NamespaceDefault
 	}
 
-	var pvcList corev1.PersistentVolumeClaimList
+	pvc := &corev1.PersistentVolumeClaim{}
 
-	err = v.Client.List(ctx, &pvcList, &client.ListOptions{
-		Namespace:     namespace,
-		LabelSelector: labels.SelectorFromSet(map[string]string{"fluent-pvc.pod-name": pod.Name}),
-	})
-	if err != nil {
-		podwebhooklog.Error(err, fmt.Sprintf("PersistentVolumeClaims.List() for %s failed.", pod.Name))
-		return admission.Allowed("")
+	isPvcExist := false
+	for _, volume := range pod.Spec.Volumes {
+		if volume.PersistentVolumeClaim != nil {
+			err = v.Client.Get(ctx, client.ObjectKey{
+				Namespace: namespace,
+				Name:      volume.PersistentVolumeClaim.ClaimName,
+			}, pvc)
+			if err != nil {
+				return admission.Errored(http.StatusInternalServerError, err)
+			}
+			for _, ref := range pvc.OwnerReferences {
+				if isOwnerFluentPVC(&ref) {
+					isPvcExist = true
+				}
+			}
+			if isPvcExist {
+				break
+			}
+		}
 	}
-	if len(pvcList.Items) == 0 {
-		return admission.Allowed(fmt.Sprintf("PVC for %s does not exist.", pod.Name))
+	if !isPvcExist {
+		return admission.Allowed(fmt.Sprintf("fluent-pvc is not exist for Pod: %s", pod.Name))
 	}
 
-	pvcName := pvcList.Items[0].ObjectMeta.Name
 	patchPvc := &corev1.PersistentVolumeClaim{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       pvc.Kind,
+			APIVersion: pvc.APIVersion,
+		},
 		ObjectMeta: metav1.ObjectMeta{
-			Labels: map[string]string{
-				"fluent-pvc.deleted": "true",
-			},
+			Name:        pvc.Name,
+			Namespace:   pvc.Namespace,
+			Annotations: map[string]string{"fluent-pvc-operator.tech.zozo.com/out-of-use": "true"},
 		},
 	}
 
-	err = v.Client.Patch(ctx, patchPvc, client.Apply)
-
+	err = v.Client.Patch(ctx, patchPvc, client.Apply, &client.PatchOptions{
+		FieldManager: "fluent-pvc-operator",
+	})
 	if err != nil {
-		podwebhooklog.Error(err, fmt.Sprintf("Label addition to %s failed.", pvcName))
+		podwebhooklog.Error(err, fmt.Sprintf("Label addition to %s failed.", pvc.Name))
 		return admission.Allowed("")
 	}
 
-	return admission.Allowed(fmt.Sprintf("Label addition to %s succeeded.", pvcName))
+	return admission.Allowed(fmt.Sprintf("Label addition to %s succeeded.", pvc.Name))
 }
 
 func (v *podMutatorOnDelete) InjectDecoder(d *admission.Decoder) error {
