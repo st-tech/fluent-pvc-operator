@@ -16,11 +16,7 @@ spec:
     singular: fluentpvc
   scope: Cluster
   versions:
-  - additionalPrinterColumns:
-    - jsonPath: .status.conditions[?(@.type=='Ready')].status
-      name: READY
-      type: string
-    name: v1alpha1
+  - name: v1alpha1
     schema:
       openAPIV3Schema:
         description: FluentPVC is the Schema for the fluentpvcs API
@@ -148,7 +144,7 @@ spec:
                 type: string
               pvcFinalizerFluentdRpcPort:
                 description: Port for the sidecar fluentd RPC.
-                format: int64
+                format: int32
                 type: integer
               pvcFinalizerPodSpecTemplate:
                 description: Pod spec template to finalize PVCs.
@@ -7377,7 +7373,7 @@ spec:
                 type: string
               sidecarFluentdRpcPort:
                 description: Port for the sidecar fluentd RPC.
-                format: int64
+                format: int32
                 type: integer
             required:
             - pvcFinalizerFluentdContainerName

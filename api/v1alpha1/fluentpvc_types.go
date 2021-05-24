@@ -28,7 +28,7 @@ type FluentPVCSpec struct {
 	SidecarFluentdContainerName string `json:"sidecarFluentdContainerName"`
 	// Port for the sidecar fluentd RPC.
 	//+kubebuiler:validation:Required
-	SidecarFluentdRpcPort int64 `json:"sidecarFluentdRpcPort"`
+	SidecarFluentdRpcPort uint32 `json:"sidecarFluentdRpcPort"`
 	// Pod spec template to finalize PVCs.
 	//+kubebuiler:validation:Required
 	PVCFinalizerPodSpecTemplate corev1.PodSpec `json:"pvcFinalizerPodSpecTemplate"`
@@ -37,7 +37,7 @@ type FluentPVCSpec struct {
 	PVCFinalizerFluentdContainerName string `json:"pvcFinalizerFluentdContainerName"`
 	// Port for the sidecar fluentd RPC.
 	//+kubebuiler:validation:Required
-	PVCFinalizerFluentdRpcPort int64 `json:"pvcFinalizerFluentdRpcPort"`
+	PVCFinalizerFluentdRpcPort uint32 `json:"pvcFinalizerFluentdRpcPort"`
 }
 
 // FluentPVCStatus defines the observed state of FluentPVC
@@ -59,7 +59,6 @@ const (
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:resource:scope=Cluster
-//+kubebuilder:printcolumn:name="READY",type="string",JSONPath=".status.conditions[?(@.type=='Ready')].status"
 type FluentPVC struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -76,6 +75,61 @@ type FluentPVCList struct {
 	Items           []FluentPVC `json:"items"`
 }
 
+type FluentPVCBindingSpec struct {
+	// FluentPVC Name to bind.
+	//+kubebuiler:validation:Required
+	FluentPVCName string `json:"fluentPVCName"`
+	// PVC Name to bind.
+	//+kubebuiler:validation:Required
+	PVCName string `json:"pvcName"`
+	// Pod Name to bind.
+	//+kubebuiler:validation:Required
+	PodName string `json:"podName"`
+}
+
+type FluentPVCBindingConditionType string
+
+const (
+	FluentPVCBindingConditionReady               FluentPVCBindingConditionType = "Ready"
+	FluentPVCBindingConditionOutOfUse            FluentPVCBindingConditionType = "OutOfUse"
+	FluentPVCBindingConditionFinalizerPodApplied FluentPVCBindingConditionType = "FinalizerPodApplied"
+	FluentPVCBindingConditionFinalized           FluentPVCBindingConditionType = "Finalized"
+	FluentPVCBindingConditionUnknown             FluentPVCBindingConditionType = "Unknown"
+)
+
+// FluentPVCStatus defines the observed state of FluentPVC
+type FluentPVCBindingStatus struct {
+	// Conditions is an array of conditions.
+	// Known .status.conditions.type are: "Ready"
+	//+patchMergeKey=type
+	//+patchStrategy=merge
+	//+listType=map
+	//+listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+}
+
+//+kubebuilder:object:root=true
+//+kubebuilder:subresource:status
+//+kubebuilder:resource:scope=Namespaced
+type FluentPVCBinding struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   FluentPVCBindingSpec   `json:"spec,omitempty"`
+	Status FluentPVCBindingStatus `json:"status,omitempty"`
+}
+
+// FluentPVCList contains a list of FluentPVC
+//+kubebuilder:object:root=true
+type FluentPVCBindingList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []FluentPVCBinding `json:"items"`
+}
+
 func init() {
-	SchemeBuilder.Register(&FluentPVC{}, &FluentPVCList{})
+	SchemeBuilder.Register(
+		&FluentPVC{}, &FluentPVCList{},
+		&FluentPVCBinding{}, &FluentPVCBindingList{},
+	)
 }
