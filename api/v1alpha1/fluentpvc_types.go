@@ -10,6 +10,9 @@ type FluentPVCSpec struct {
 	// PVC spec template to inject into pod manifests.
 	//+kubebuiler:validation:Required
 	PVCSpecTemplate corev1.PersistentVolumeClaimSpec `json:"pvcSpecTemplate"`
+	// Name of the Volume to mount the PVC.
+	//+kubebuiler:validation:Required
+	PVCVolumeName string `json:"pvcVolumeName"`
 	// Path to mount the PVC.
 	//+kubebuiler:validation:Required
 	PVCMountPath string `json:"pvcMountPath"`
@@ -25,7 +28,7 @@ type FluentPVCSpec struct {
 	SidecarFluentdContainerName string `json:"sidecarFluentdContainerName"`
 	// Port for the sidecar fluentd RPC.
 	//+kubebuiler:validation:Required
-	SidecarFluentdRpcPort string `json:"sidecarFluentdRpcPort"`
+	SidecarFluentdRpcPort int64 `json:"sidecarFluentdRpcPort"`
 	// Pod spec template to finalize PVCs.
 	//+kubebuiler:validation:Required
 	PVCFinalizerPodSpecTemplate corev1.PodSpec `json:"pvcFinalizerPodSpecTemplate"`
@@ -34,7 +37,7 @@ type FluentPVCSpec struct {
 	PVCFinalizerFluentdContainerName string `json:"pvcFinalizerFluentdContainerName"`
 	// Port for the sidecar fluentd RPC.
 	//+kubebuiler:validation:Required
-	PVCFinalizerFluentdRpcPort string `json:"pvcFinalizerFluentdRpcPort"`
+	PVCFinalizerFluentdRpcPort int64 `json:"pvcFinalizerFluentdRpcPort"`
 }
 
 // FluentPVCStatus defines the observed state of FluentPVC

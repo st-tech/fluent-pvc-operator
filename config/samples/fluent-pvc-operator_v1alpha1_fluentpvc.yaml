@@ -9,6 +9,7 @@ spec:
     resources:
       requests:
         storage: 1Gi
+  pvcVolumeName: fluent-pvc
   pvcMountPath: /event-log
   commonEnv:
     - name: FLUENTD_COLLECT_ROOT_DIR

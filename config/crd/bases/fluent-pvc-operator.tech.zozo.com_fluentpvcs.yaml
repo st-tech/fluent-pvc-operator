@@ -148,7 +148,8 @@ spec:
                 type: string
               pvcFinalizerFluentdRpcPort:
                 description: Port for the sidecar fluentd RPC.
-                type: string
+                format: int64
+                type: integer
               pvcFinalizerPodSpecTemplate:
                 description: Pod spec template to finalize PVCs.
                 properties:
@@ -6281,6 +6282,9 @@ spec:
                       backing this claim.
                     type: string
                 type: object
+              pvcVolumeName:
+                description: Name of the Volume to mount the PVC.
+                type: string
               sidecarContainersTemplate:
                 description: Sidecare containers templates that must include a fluentd
                   definition.
@@ -7373,13 +7377,15 @@ spec:
                 type: string
               sidecarFluentdRpcPort:
                 description: Port for the sidecar fluentd RPC.
-                type: string
+                format: int64
+                type: integer
             required:
             - pvcFinalizerFluentdContainerName
             - pvcFinalizerFluentdRpcPort
             - pvcFinalizerPodSpecTemplate
             - pvcMountPath
             - pvcSpecTemplate
+            - pvcVolumeName
             - sidecarContainersTemplate
             - sidecarFluentdContainerName
             - sidecarFluentdRpcPort
