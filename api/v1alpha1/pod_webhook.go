@@ -10,7 +10,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/config/v1alpha1"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -32,7 +31,7 @@ func PodAdmissionResponse(pod *corev1.Pod, req admission.Request) admission.Resp
 
 func isOwnerFluentPVC(owner *metav1.OwnerReference) bool {
 	return owner != nil &&
-		owner.APIVersion == v1alpha1.GroupVersion.String() &&
+		owner.APIVersion == GroupVersion.String() &&
 		owner.Kind == "FluentPVC"
 }
 
@@ -181,20 +180,21 @@ func (v *podMutatorOnDelete) Handle(ctx context.Context, req admission.Request) 
 
 	isPvcExist := false
 	for _, volume := range pod.Spec.Volumes {
-		if volume.PersistentVolumeClaim != nil {
-			refPvc := &corev1.PersistentVolumeClaim{}
-			err = v.Client.Get(ctx, client.ObjectKey{
-				Namespace: namespace,
-				Name:      volume.PersistentVolumeClaim.ClaimName,
-			}, refPvc)
-			if err != nil {
-				return admission.Errored(http.StatusInternalServerError, err)
-			}
-			if isOwnerFluentPVC(metav1.GetControllerOf(refPvc)) {
-				isPvcExist = true
-				pvc = refPvc
-				break
-			}
+		if volume.PersistentVolumeClaim == nil {
+			continue
+		}
+		refPvc := &corev1.PersistentVolumeClaim{}
+		err = v.Client.Get(ctx, client.ObjectKey{
+			Namespace: namespace,
+			Name:      volume.PersistentVolumeClaim.ClaimName,
+		}, refPvc)
+		if err != nil {
+			return admission.Errored(http.StatusInternalServerError, err)
+		}
+		if isOwnerFluentPVC(metav1.GetControllerOf(refPvc)) {
+			isPvcExist = true
+			pvc = refPvc
+			break
 		}
 	}
 	if !isPvcExist {
