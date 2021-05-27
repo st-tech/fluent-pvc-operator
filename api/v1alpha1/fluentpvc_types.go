@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -29,9 +30,9 @@ type FluentPVCSpec struct {
 	// Port for the sidecar fluentd RPC.
 	//+kubebuiler:validation:Required
 	SidecarFluentdRpcPort uint32 `json:"sidecarFluentdRpcPort"`
-	// Pod spec template to finalize PVCs.
+	// Job template to finalize PVCs.
 	//+kubebuiler:validation:Required
-	PVCFinalizerPodSpecTemplate corev1.PodSpec `json:"pvcFinalizerPodSpecTemplate"`
+	PVCFinalizerJobSpecTemplate batchv1.JobSpec `json:"pvcFinalizerJobSpecTemplate"`
 	// Name of the fluentd container in finalizer pod containers.
 	//+kubebuiler:validation:Required
 	PVCFinalizerFluentdContainerName string `json:"pvcFinalizerFluentdContainerName"`
@@ -90,11 +91,12 @@ type FluentPVCBindingSpec struct {
 type FluentPVCBindingConditionType string
 
 const (
-	FluentPVCBindingConditionReady               FluentPVCBindingConditionType = "Ready"
-	FluentPVCBindingConditionOutOfUse            FluentPVCBindingConditionType = "OutOfUse"
-	FluentPVCBindingConditionFinalizerPodApplied FluentPVCBindingConditionType = "FinalizerPodApplied"
-	FluentPVCBindingConditionFinalized           FluentPVCBindingConditionType = "Finalized"
-	FluentPVCBindingConditionUnknown             FluentPVCBindingConditionType = "Unknown"
+	FluentPVCBindingConditionReady                 FluentPVCBindingConditionType = "Ready"
+	FluentPVCBindingConditionOutOfUse              FluentPVCBindingConditionType = "OutOfUse"
+	FluentPVCBindingConditionFinalizerPodApplied   FluentPVCBindingConditionType = "FinalizerPodApplied"
+	FluentPVCBindingConditionFinalizerPodSucceeded FluentPVCBindingConditionType = "FinalizerPodSucceeded"
+	FluentPVCBindingConditionFinalizerPodFailed    FluentPVCBindingConditionType = "FinalizerPodFailed"
+	FluentPVCBindingConditionUnknown               FluentPVCBindingConditionType = "Unknown"
 )
 
 // FluentPVCStatus defines the observed state of FluentPVC
