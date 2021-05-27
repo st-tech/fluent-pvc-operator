@@ -1,4 +1,4 @@
-package v1alpha1
+package webhooks
 
 import (
 	"context"
@@ -14,6 +14,8 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+
+	fluentpvcv1alpha1 "github.com/st-tech/fluent-pvc-operator/api/v1alpha1"
 )
 
 var podwebhooklog = logf.Log.WithName("pod-webhook")
@@ -32,7 +34,7 @@ func PodAdmissionResponse(pod *corev1.Pod, req admission.Request) admission.Resp
 
 func isOwnerFluentPVC(owner *metav1.OwnerReference) bool {
 	return owner != nil &&
-		owner.APIVersion == GroupVersion.String() &&
+		owner.APIVersion == fluentpvcv1alpha1.GroupVersion.String() &&
 		owner.Kind == "FluentPVC"
 }
 
@@ -91,9 +93,9 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 	}
 
 	// TODO: Consider too long pod name
-	pvcName := "fluent-pvc-" + pod.Name + "-" + RandStringRunes(8)
+	pvcName := "fluent-pvc-" + pod.Name + "-" + fluentpvcv1alpha1.RandStringRunes(8)
 
-	fpvc := &FluentPVC{}
+	fpvc := &fluentpvcv1alpha1.FluentPVC{}
 	err = m.Client.Get(ctx, client.ObjectKey{
 		Name: pod.Annotations["fluent-pvc-operator.tech.zozo.com/fluent-pvc-name"],
 	}, fpvc)
