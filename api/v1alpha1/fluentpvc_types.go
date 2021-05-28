@@ -13,32 +13,24 @@ type FluentPVCSpec struct {
 	PVCSpecTemplate corev1.PersistentVolumeClaimSpec `json:"pvcSpecTemplate"`
 	// Name of the Volume to mount the PVC.
 	//+kubebuiler:validation:Required
-	PVCVolumeName string `json:"pvcVolumeName"`
+	VolumeName string `json:"volumeName"`
 	// Path to mount the PVC.
 	//+kubebuiler:validation:Required
-	PVCMountPath string `json:"pvcMountPath"`
+	CommonMountPath string `json:"commonMountPath"`
 	// Common environment variables to inject into all containers.
 	//+optional
 	CommonEnv []corev1.EnvVar `json:"commonEnv,omitempty"`
 	// Sidecare containers templates that must include a fluentd definition.
 	//+kubebuiler:validation:Required
 	//+kubebuiler:validation:MinItems=1
-	SidecarContainersTemplate []corev1.Container `json:"sidecarContainersTemplate"`
-	// Name of the fluentd container in sidecar containers.
+	SidecarContainerTemplate corev1.Container `json:"sidecarContainerTemplate"`
+	// Delete the pod if the sidecar container termination is detected.
 	//+kubebuiler:validation:Required
-	SidecarFluentdContainerName string `json:"sidecarFluentdContainerName"`
-	// Port for the sidecar fluentd RPC.
-	//+kubebuiler:validation:Required
-	SidecarFluentdRpcPort uint32 `json:"sidecarFluentdRpcPort"`
+	//+kubebuilder:default:true
+	DeletePodIfSidecarContainerTerminationDetected bool `json:"deletePodIfSidecarContainerTerminationDetected"`
 	// Job template to finalize PVCs.
 	//+kubebuiler:validation:Required
 	PVCFinalizerJobSpecTemplate batchv1.JobSpec `json:"pvcFinalizerJobSpecTemplate"`
-	// Name of the fluentd container in finalizer pod containers.
-	//+kubebuiler:validation:Required
-	PVCFinalizerFluentdContainerName string `json:"pvcFinalizerFluentdContainerName"`
-	// Port for the sidecar fluentd RPC.
-	//+kubebuiler:validation:Required
-	PVCFinalizerFluentdRpcPort uint32 `json:"pvcFinalizerFluentdRpcPort"`
 }
 
 // FluentPVCStatus defines the observed state of FluentPVC
@@ -93,9 +85,9 @@ type FluentPVCBindingConditionType string
 const (
 	FluentPVCBindingConditionReady                 FluentPVCBindingConditionType = "Ready"
 	FluentPVCBindingConditionOutOfUse              FluentPVCBindingConditionType = "OutOfUse"
-	FluentPVCBindingConditionFinalizerPodApplied   FluentPVCBindingConditionType = "FinalizerPodApplied"
-	FluentPVCBindingConditionFinalizerPodSucceeded FluentPVCBindingConditionType = "FinalizerPodSucceeded"
-	FluentPVCBindingConditionFinalizerPodFailed    FluentPVCBindingConditionType = "FinalizerPodFailed"
+	FluentPVCBindingConditionFinalizerJobApplied   FluentPVCBindingConditionType = "FinalizerJobApplied"
+	FluentPVCBindingConditionFinalizerJobSucceeded FluentPVCBindingConditionType = "FinalizerJobSucceeded"
+	FluentPVCBindingConditionFinalizerJobFailed    FluentPVCBindingConditionType = "FinalizerJobFailed"
 	FluentPVCBindingConditionUnknown               FluentPVCBindingConditionType = "Unknown"
 )
 

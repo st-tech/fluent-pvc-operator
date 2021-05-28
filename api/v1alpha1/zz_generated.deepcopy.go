@@ -176,13 +176,7 @@ func (in *FluentPVCSpec) DeepCopyInto(out *FluentPVCSpec) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
-	if in.SidecarContainersTemplate != nil {
-		in, out := &in.SidecarContainersTemplate, &out.SidecarContainersTemplate
-		*out = make([]v1.Container, len(*in))
-		for i := range *in {
-			(*in)[i].DeepCopyInto(&(*out)[i])
-		}
-	}
+	in.SidecarContainerTemplate.DeepCopyInto(&out.SidecarContainerTemplate)
 	in.PVCFinalizerJobSpecTemplate.DeepCopyInto(&out.PVCFinalizerJobSpecTemplate)
 }
 
