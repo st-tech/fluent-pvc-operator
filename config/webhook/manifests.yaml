@@ -13,9 +13,9 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-on-creation-core-v1-pod
+      path: /pod/mutate
   failurePolicy: Fail
-  name: mpod.kb.io
+  name: pod-mutation-webhook.fluent-pvc-operator.tech.zozo.com
   rules:
   - apiGroups:
     - ""
@@ -23,26 +23,6 @@ webhooks:
     - v1
     operations:
     - CREATE
-    resources:
-    - pods
-  sideEffects: None
-- admissionReviewVersions:
-  - v1
-  - v1beta1
-  clientConfig:
-    service:
-      name: webhook-service
-      namespace: system
-      path: /mutate-on-deletion-core-v1-pod
-  failurePolicy: Fail
-  name: mdpod.kb.io
-  rules:
-  - apiGroups:
-    - ""
-    apiVersions:
-    - v1
-    operations:
-    - DELETE
     resources:
     - pods
   sideEffects: None
@@ -61,9 +41,9 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-core-v1-pod
+      path: /pod/validate
   failurePolicy: Fail
-  name: vpod.kb.io
+  name: pod-validation-webhook.fluent-pvc-operator.tech.zozo.com
   rules:
   - apiGroups:
     - ""
