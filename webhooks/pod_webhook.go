@@ -48,10 +48,9 @@ func NewPodMutator(c client.Client) admission.Handler {
 }
 
 func (m *podMutator) Handle(ctx context.Context, req admission.Request) admission.Response {
-	logger := log.FromContext(ctx).WithName("mutate-on-creation-core-v1-pod")
+	logger := log.FromContext(ctx).WithName("webhooks").WithName("pod-mutation-webhook")
 	pod := &corev1.Pod{}
-	err := m.decoder.Decode(req, pod)
-	if err != nil {
+	if err := m.decoder.Decode(req, pod); err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 	if len(pod.Spec.Containers) == 0 {
