@@ -14,11 +14,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	fluentpvcv1alpha1 "github.com/st-tech/fluent-pvc-operator/api/v1alpha1"
+	"github.com/st-tech/fluent-pvc-operator/constants"
 	hashutils "github.com/st-tech/fluent-pvc-operator/utils/hash"
-)
-
-const (
-	PodAnnotationFluentPVCName = "fluent-pvc-operator.tech.zozo.com/fluent-pvc-name"
 )
 
 //+kubebuilder:webhook:path=/pod/mutate,mutating=true,failurePolicy=fail,sideEffects=None,groups=core,resources=pods,verbs=create,versions=v1,name=pod-mutation-webhook.fluent-pvc-operator.tech.zozo.com,admissionReviewVersions={v1,v1beta1}
@@ -58,7 +55,7 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 		return admission.Denied("pod has no containers")
 	}
 	fpvc := &fluentpvcv1alpha1.FluentPVC{}
-	if n, ok := pod.Annotations[PodAnnotationFluentPVCName]; !ok {
+	if n, ok := pod.Annotations[constants.PodAnnotationFluentPVCName]; !ok {
 		return admission.Allowed(fmt.Sprintf("Pod: %s is not a target for fluent-pvc.", pod.Name))
 	} else {
 		if err := m.Get(ctx, client.ObjectKey{Name: n}, fpvc); err != nil {

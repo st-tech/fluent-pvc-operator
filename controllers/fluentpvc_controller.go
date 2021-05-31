@@ -23,12 +23,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	fluentpvcv1alpha1 "github.com/st-tech/fluent-pvc-operator/api/v1alpha1"
+	"github.com/st-tech/fluent-pvc-operator/constants"
 )
 
 const (
 	fluentPVCBindingWatcherInterval  = 5 * time.Second
 	fluentPVCBindingWatcherListLimit = 300
-	ownerControllerField             = ".metadata.ownerReference.controller"
 )
 
 /*
@@ -272,7 +272,7 @@ func (r *FluentPVCReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 				return ctrl.Result{}, nil
 			}
 			jl := &batchv1.JobList{}
-			if err := r.List(ctx, jl, client.MatchingFields(map[string]string{ownerControllerField: b.Name})); err != nil {
+			if err := r.List(ctx, jl, client.MatchingFields(map[string]string{constants.OwnerControllerField: b.Name})); err != nil {
 				if apierrors.IsNotFound(err) {
 					logger.Info("Rerun finalizer job because the finalizer job is not found unexpectedly.")
 					meta.SetStatusCondition(&b.Status.Conditions, metav1.Condition{
@@ -507,14 +507,14 @@ func (r *FluentPVCReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// todo: is required?
 	if err := mgr.GetFieldIndexer().IndexField(ctx,
 		&corev1.PersistentVolumeClaim{},
-		ownerControllerField,
+		constants.OwnerControllerField,
 		indexPVCByOwnerFluentPVCBinding,
 	); err != nil {
 		return xerrors.Errorf("Unexpected error occurred when indexing PVC by FluentPVCBinding caused by: %w", err)
 	}
 	if err := mgr.GetFieldIndexer().IndexField(ctx,
 		&batchv1.Job{},
-		ownerControllerField,
+		constants.OwnerControllerField,
 		indexJobByOwnerFluentPVCBinding,
 	); err != nil {
 		return xerrors.Errorf("Unexpected error occurred when indexing Job by FluentPVCBinding caused by: %w", err)
@@ -522,7 +522,7 @@ func (r *FluentPVCReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// todo: is required?
 	if err := mgr.GetFieldIndexer().IndexField(ctx,
 		&fluentpvcv1alpha1.FluentPVCBinding{},
-		ownerControllerField,
+		constants.OwnerControllerField,
 		indexFluentPVCBindingByOwnerFluentPVC,
 	); err != nil {
 		return xerrors.Errorf("Unexpected error occurred when indexing FluentPVCBinding by FluentPVC caused by: %w", err)
