@@ -17,6 +17,7 @@ import (
 
 	fluentpvcoperatorv1alpha1 "github.com/st-tech/fluent-pvc-operator/api/v1alpha1"
 	"github.com/st-tech/fluent-pvc-operator/controllers"
+	"github.com/st-tech/fluent-pvc-operator/webhooks"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -70,7 +71,7 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "FluentPVC")
 		os.Exit(1)
 	}
-	if err = fluentpvcoperatorv1alpha1.SetupPodWebhookWithManager(mgr); err != nil {
+	if err = webhooks.SetupPodWebhookWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create webhook", "webhook", "Pod")
 		os.Exit(1)
 	}
