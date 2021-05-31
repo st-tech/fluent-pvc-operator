@@ -90,6 +90,15 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 	pvc.SetNamespace(pod.Namespace)
 	if _, err := ctrl.CreateOrUpdate(ctx, m, pvc, func() error {
 		pvc.Spec = *fpvc.Spec.PVCSpecTemplate.DeepCopy()
+		hasFinalizer := false
+		for _, f := range pvc.Finalizers {
+			if f == constants.PVCFinalizerName {
+				hasFinalizer = true
+			}
+		}
+		if !hasFinalizer {
+			pvc.Finalizers = append(pvc.Finalizers, constants.PVCFinalizerName)
+		}
 		return ctrl.SetControllerReference(b, pvc, m.Scheme())
 	}); err != nil {
 		logger.Error(err, fmt.Sprintf("Cannot CreateOrUpdate PVC='%s'.", name))

@@ -463,45 +463,6 @@ func (r *FluentPVCReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	return ctrl.Result{}, nil
 }
 
-func indexPVCByOwnerFluentPVCBinding(obj client.Object) []string {
-	pvc := obj.(*corev1.PersistentVolumeClaim)
-	owner := metav1.GetControllerOf(pvc)
-	if !isOwnerFluentPVCBinding(owner) {
-		return nil
-	}
-	return []string{owner.Name}
-}
-
-func indexJobByOwnerFluentPVCBinding(obj client.Object) []string {
-	j := obj.(*batchv1.Job)
-	owner := metav1.GetControllerOf(j)
-	if !isOwnerFluentPVCBinding(owner) {
-		return nil
-	}
-	return []string{owner.Name}
-}
-
-func isOwnerFluentPVCBinding(owner *metav1.OwnerReference) bool {
-	return owner != nil &&
-		owner.APIVersion == fluentpvcv1alpha1.GroupVersion.String() &&
-		owner.Kind == "FluentPVCBinding"
-}
-
-func indexFluentPVCBindingByOwnerFluentPVC(obj client.Object) []string {
-	b := obj.(*fluentpvcv1alpha1.FluentPVCBinding)
-	owner := metav1.GetControllerOf(b)
-	if !isOwnerFluentPVC(owner) {
-		return nil
-	}
-	return []string{owner.Name}
-}
-
-func isOwnerFluentPVC(owner *metav1.OwnerReference) bool {
-	return owner != nil &&
-		owner.APIVersion == fluentpvcv1alpha1.GroupVersion.String() &&
-		owner.Kind == "FluentPVC"
-}
-
 func (r *FluentPVCReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	ctx := context.Background()
 	// todo: is required?
@@ -600,56 +561,6 @@ func (w *fluentPVCBindingWatcher) fireEvent(ctx context.Context) error {
 			return nil
 		}
 	}
-}
-
-func (r *FluentPVCReconciler) getPodsByPVC(ctx context.Context, pvc *corev1.PersistentVolumeClaim) ([]corev1.Pod, error) {
-	var pods corev1.PodList
-	// query directly to API server to avoid latency for cache updates
-	err := r.APIReader.List(ctx, &pods, client.InNamespace(pvc.Namespace))
-	if err != nil {
-		return nil, err
-	}
-
-	var result []corev1.Pod
-OUTER:
-	for _, pod := range pods.Items {
-		for _, volume := range pod.Spec.Volumes {
-			if volume.PersistentVolumeClaim == nil {
-				continue
-			}
-			if volume.PersistentVolumeClaim.ClaimName == pvc.Name {
-				result = append(result, pod)
-				continue OUTER
-			}
-		}
-	}
-
-	return result, nil
-}
-
-func getFinishedStatus(j *batchv1.Job) (bool, batchv1.JobConditionType) {
-	for _, c := range j.Status.Conditions {
-		if (c.Type == batchv1.JobComplete || c.Type == batchv1.JobFailed) && c.Status == corev1.ConditionTrue {
-			return true, c.Type
-		}
-	}
-	return false, ""
-}
-
-// IsJobFinished returns whether or not a job has completed successfully or failed.
-func IsJobFinished(j *batchv1.Job) bool {
-	isFinished, _ := getFinishedStatus(j)
-	return isFinished
-}
-
-func IsJobSucceeded(j *batchv1.Job) bool {
-	isFinished, t := getFinishedStatus(j)
-	return isFinished && t == batchv1.JobComplete
-}
-
-func IsJobFailed(j *batchv1.Job) bool {
-	isFinished, t := getFinishedStatus(j)
-	return isFinished && t == batchv1.JobFailed
 }
 
 // https://github.com/kubernetes/kubernetes/blob/c495744436fc94ebbef2fcbeb97699ca96fe02dd/pkg/api/pod/util.go#L242-L272
