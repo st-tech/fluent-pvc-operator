@@ -39,14 +39,3 @@ jobs:
     - name: make docker-push
       run: |
         make docker-push IMG=${DOCKER_IMAGE_URI}:gitsha-${GITHUB_SHA}
-
-    - name: Slack notification
-      if: github.event_name == 'push' && always()
-      uses: sonots/slack-notice-action@v3
-      with:
-        title: (dev) build image and push
-        only_mention_fail: channel
-        status: ${{ job.status }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL_NOTICE }}
