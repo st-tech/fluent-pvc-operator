@@ -71,11 +71,15 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 		"%s-%s-%s",
 		fpvc.Name, hashutils.ComputeHash(fpvc, nil), hashutils.ComputeHash(pod, nil),
 	)
+	namespace := corev1.NamespaceDefault
+	if pod.Namespace != "" {
+		namespace = pod.Namespace
+	}
 
 	logger.Info(fmt.Sprintf("CreateOrUpdate FluentPVCBinding='%s'.", name))
 	b := &fluentpvcv1alpha1.FluentPVCBinding{}
 	b.SetName(name)
-	b.SetNamespace(pod.Namespace)
+	b.SetNamespace(namespace)
 	if _, err := ctrl.CreateOrUpdate(ctx, m, b, func() error {
 		b.Spec.FluentPVCName = fpvc.Name
 		b.Spec.PodName = pod.Name
@@ -89,7 +93,7 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 	logger.Info(fmt.Sprintf("CreateOrUpdate PVC='%s'.", name))
 	pvc := &corev1.PersistentVolumeClaim{}
 	pvc.SetName(name)
-	pvc.SetNamespace(pod.Namespace)
+	pvc.SetNamespace(namespace)
 	if _, err := ctrl.CreateOrUpdate(ctx, m, pvc, func() error {
 		pvc.Spec = *fpvc.Spec.PVCSpecTemplate.DeepCopy()
 		hasFinalizer := false
