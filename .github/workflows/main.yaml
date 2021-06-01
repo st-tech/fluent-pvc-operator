@@ -1,0 +1,52 @@
+name: development build
+
+on:
+  push:
+    branches:
+      - 'main'
+  pull_request:
+    branches:
+      - 'main'
+    types: [opened, synchronize]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      DOCKER_IMAGE_URI: ghcr.io/${{ github.repository_owner }}/fluent-pvc-operator
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Set up Golang 
+      uses: actions/setup-java@v2
+      with:
+        go-version: '1.16'
+
+    - name: Login to GitHub Container Registry
+      uses: docker/login-action@v1
+      with:
+        registry: ghcr.io
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    # Setup tmate session to debug via SSH. See https://github.com/mxschmitt/action-tmate
+    # - uses: mxschmitt/action-tmate@v1
+
+    - name: make docker-build include tests
+      run: |
+        make docker-build IMG=${DOCKER_IMAGE_URI}:gitsha-${GITHUB_SHA}
+
+    - name: make docker-push
+      run: |
+        make docker-push IMG=${DOCKER_IMAGE_URI}:gitsha-${GITHUB_SHA}
+
+    - name: Slack notification
+      if: github.event_name == 'push' && always()
+      uses: sonots/slack-notice-action@v3
+      with:
+        title: (dev) build image and push
+        only_mention_fail: channel
+        status: ${{ job.status }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL_NOTICE }}
