@@ -109,8 +109,8 @@ func isJobFailed(j *batchv1.Job) bool {
 }
 
 // https://github.com/kubernetes/kubernetes/blob/c495744436fc94ebbef2fcbeb97699ca96fe02dd/pkg/api/pod/util.go#L242-L272
-// isPodReady returns true if a pod is ready; false otherwise.
-func isPodReady(pod *corev1.Pod) bool {
+// isPodReadyCondition returns true if a pod is ready; false otherwise.
+func isPodReadyCondition(pod *corev1.Pod) bool {
 	return isPodReadyConditionTrue(pod.Status)
 }
 
@@ -125,6 +125,10 @@ func isPodReadyConditionTrue(status corev1.PodStatus) bool {
 func getPodReadyCondition(status corev1.PodStatus) *corev1.PodCondition {
 	_, condition := getPodCondition(&status, corev1.PodReady)
 	return condition
+}
+
+func isPodReadyPhase(pod *corev1.Pod) bool {
+	return pod.Status.Phase == corev1.PodRunning
 }
 
 // getPodCondition extracts the provided condition from the given status and returns that.

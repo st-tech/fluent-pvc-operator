@@ -51,10 +51,10 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		fluentPVCName = v
 	}
 
-	if !isPodReady(pod) {
+	if !isPodReadyPhase(pod) {
 		logger.Info(fmt.Sprintf(
-			"Skip processing because pod='%s' is '%s' status.",
-			pod.Name, pod.Status.Phase,
+			"Skip processing because pod='%s' is '%s' status (%+v)",
+			pod.Name, pod.Status.Phase, pod.Status,
 		))
 		return ctrl.Result{}, nil
 	}
@@ -124,6 +124,7 @@ func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		UpdateFunc:  func(event.UpdateEvent) bool { return true },
 		GenericFunc: func(event.GenericEvent) bool { return false },
 	}
+	// TODO: Monitor at shorter intervals.
 
 	return ctrl.NewControllerManagedBy(mgr).
 		WithEventFilter(pred).
