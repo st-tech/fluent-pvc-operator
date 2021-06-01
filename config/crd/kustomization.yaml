@@ -3,6 +3,7 @@
 # It should be run by config/default
 resources:
 - bases/fluent-pvc-operator.tech.zozo.com_fluentpvcs.yaml
+- bases/fluent-pvc-operator.tech.zozo.com_fluentpvcbindings.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
 patchesStrategicMerge:

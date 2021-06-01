@@ -5,15 +5,16 @@ metadata:
 spec:
   pvcSpecTemplate:
     accessModes: [ "ReadWriteOnce" ]
-    storageClassName: fast
+    storageClassName: standard
     resources:
       requests:
         storage: 1Gi
-  pvcVolumeName: fluent-pvc
-  pvcMountPath: /event-log
+  volumeName: fluent-pvc
+  commonMountPath: /mnt/fluent-pvc
+  deletePodIfSidecarContainerTerminationDetected: true
   commonEnv:
     - name: FLUENTD_COLLECT_ROOT_DIR
-      value: /event-log
+      value: /mnt/fluent-pvc
     - name: POD_NAMESPACE
       valueFrom:
         fieldRef:
@@ -30,103 +31,25 @@ spec:
       valueFrom:
         fieldRef:
           fieldPath: spec.nodeName
-  sidecarContainersTemplate:
-    - name: zozo-k8s-sidecar-fluentd
-      image: zozo-k8s-sidecar-fluentd:latest
-      env:
-        - name: GCLOUD_KEYFILE
-          value: /fluentd/secret/google_credetials.json
-      startupProbe:
-        httpGet:
-          path: /api/plugins.json
-          port: 24220
-        initialDelaySeconds: 1
-        periodSeconds: 1
-        timeoutSeconds: 1
-        successThreshold: 1
-        failureThreshold: 150
-      livenessProbe:
-        exec:
-          command: ["/liveness_probe.sh"]
-        initialDelaySeconds: 1
-        periodSeconds: 60
-        timeoutSeconds: 5
-        successThreshold: 1
-        failureThreshold: 1
-      lifecycle:
-        preStop:
-          exec:
-            command: ["sleep", "60"]
-      imagePullPolicy: Always
-      resources:
-        limits:
-          cpu: '1'
-          memory: 1Gi
-      volumeMounts:
-        - mountPath: /fluentd/secret
-          name: gcp-secret
-  sidecarFluentdContainerName: zozo-k8s-sidecar-fluentd
-  sidecarFluentdRpcPort: 8080
-  pvcFinalizerPodSpecTemplate:
-    serviceAccountName: sample-app
-    containers:
-      - name: zozo-k8s-sidecar-fluentd
-        image: zozo-k8s-sidecar-fluentd:latest
-        env:
-          - name: GCLOUD_KEYFILE
-            value: /fluentd/secret/google_credetials.json
-        startupProbe:
-          httpGet:
-            path: /api/plugins.json
-            port: 24220
-          initialDelaySeconds: 1
-          periodSeconds: 1
-          timeoutSeconds: 1
-          successThreshold: 1
-          failureThreshold: 150
-        lifecycle:
-          preStop:
-            exec:
-              command:
-                - bash
-                - -c
-                - |
-                  echo "[INFO] Check the stuck of fluentd processing."
-                  while true; do
-                      echo '{"_heatbeat_log":true}' > ${FLUENTD_HEATBEAT_LOG_DIR}/log.$(date +%Y%m%d%H%M%S)
-                      touch -d "${FLUENTD_STUCK_THRESHOLD_SECONDS} seconds ago" /tmp/marker-stuck
-                      if [[ -z "$(find ${FLUENTD_BUFFER_DIR} -type d -newer /tmp/marker-stuck -print -quit)" ]]; then
-                          echo "[WARNING] Processing is stuck ${FLUENTD_STUCK_THRESHOLD_SECONDS} seconds."
-                          sleep 1
-                      else
-                          break
-                      fi
-                  done
-
-                  echo "[INFO] Check the buffer size."
-                  while true; do
-                      FLUENTD_BUFFER_SIZE=$(du -bs ${FLUENTD_BUFFER_DIR} | cut -f1)
-                      if (( ${FLUENTD_BUFFER_SIZE} > ${FLUENTD_BUFFER_SIZE_THRESHOLD_BYTES} )); then
-                          echo "[WARNING] Fluentd buffer size: '${FLUENTD_BUFFER_SIZE}' is larger than '${FLUENTD_BUFFER_SIZE_THRESHOLD_BYTES}'."
-                          sleep 1
-                      else
-                          break
-                      fi
-                  done
-                  echo "[INFO] Wait ${FLUENTD_TAIL_REFRESH_INTERVAL} to collect all logs."
-                  sleep ${FLUENTD_TAIL_REFRESH_INTERVAL}
-        imagePullPolicy: Always
-        resources:
-          limits:
-            cpu: '1'
-            memory: 1Gi
-        volumeMounts:
-          - mountPath: /fluentd/secret
-            name: gcp-secret
-    volumes:
-      - name: gcp-secret
-        secret:
-          secretName: gcp-secret
-    terminationGracePeriodSeconds: 604800 # 7days
-  pvcFinalizerFluentdContainerName: zozo-k8s-sidecar-fluentd
-  pvcFinalizerFluentdRpcPort: 8080
+  sidecarContainerTemplate:
+    name: sidecar
+    image: alpine:latest
+    imagePullPolicy: Always
+    command: [echo sidecar]
+    resources:
+      limits:
+        cpu: '1'
+        memory: 1Gi
+  pvcFinalizerJobSpecTemplate:
+    template:
+      spec:
+        restartPolicy: Never
+        containers:
+          - name: sidecar
+            image: alpine:latest
+            imagePullPolicy: Always
+            command: [echo finalizer]
+            resources:
+              limits:
+                cpu: '1'
+                memory: 1Gi

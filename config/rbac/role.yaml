@@ -11,9 +11,11 @@ rules:
   resources:
   - persistentvolumeclaims
   verbs:
+  - create
   - delete
   - get
   - list
+  - update
   - watch
 - apiGroups:
   - ""
@@ -28,8 +30,12 @@ rules:
   resources:
   - jobs
   verbs:
+  - create
+  - delete
   - get
   - list
+  - patch
+  - update
   - watch
 - apiGroups:
   - fluent-pvc-operator.tech.zozo.com
