@@ -146,6 +146,9 @@ spec:
                 description: Delete the pod if the sidecar container termination is
                   detected.
                 type: boolean
+              ignoreIfFinalizerJobFailed:
+                description: Retry the finalizer job until it succeeds.
+                type: boolean
               pvcFinalizerJobSpecTemplate:
                 description: Job template to finalize PVCs.
                 properties:
@@ -8000,7 +8003,6 @@ spec:
                 type: string
             required:
             - commonMountPath
-            - deletePodIfSidecarContainerTerminationDetected
             - pvcFinalizerJobSpecTemplate
             - pvcSpecTemplate
             - sidecarContainerTemplate
