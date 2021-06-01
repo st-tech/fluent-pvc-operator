@@ -63,12 +63,28 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controllers.FluentPVCReconciler{
+	// if err = (&controllers.FluentPVCReconciler{
+	// 	Client: mgr.GetClient(),
+	// 	Log:    ctrl.Log.WithName("controllers").WithName("FluentPVC"),
+	// 	Scheme: mgr.GetScheme(),
+	// }).SetupWithManager(mgr); err != nil {
+	// 	setupLog.Error(err, "unable to create controller", "controller", "FluentPVC")
+	// 	os.Exit(1)
+	// }
+	if err = (&controllers.PVCReconciler{
 		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("FluentPVC"),
+		Log:    ctrl.Log.WithName("controllers").WithName("pvc_controller"),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "FluentPVC")
+		setupLog.Error(err, "unable to create controller", "controller", "pvc_controller")
+		os.Exit(1)
+	}
+	if err = (&controllers.PodReconciler{
+		Client: mgr.GetClient(),
+		Log:    ctrl.Log.WithName("controllers").WithName("pod_controller"),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "pod_controller")
 		os.Exit(1)
 	}
 	if err = webhooks.SetupPodWebhookWithManager(mgr); err != nil {
