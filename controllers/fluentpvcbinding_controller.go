@@ -219,8 +219,7 @@ func (r *FluentPVCBindingReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		}
 	case podFound && pvcFound:
 		switch pod.Status.Phase {
-		case corev1.PodPending:
-		case corev1.PodRunning:
+		case corev1.PodPending, corev1.PodRunning:
 			message := fmt.Sprintf("Both pod='%s' and pvc='%s' are found", podName, pvcName)
 			b.SetConditionReady("PodAndPVCFound", message)
 			if err := r.Status().Update(ctx, b); err != nil {

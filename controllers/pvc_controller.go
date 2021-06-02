@@ -153,14 +153,15 @@ func (r *PVCReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		GenericFunc: func(event.GenericEvent) bool { return false },
 	}
 
-	ctx := context.Background()
-	if err := mgr.GetFieldIndexer().IndexField(ctx,
-		&batchv1.Job{},
-		constants.OwnerControllerField,
-		indexJobByOwnerFluentPVCBinding,
-	); err != nil {
-		return xerrors.Errorf("Unexpected error occurred.: %w", err)
-	}
+	// NOTE: Avoid 'indexer conflict: map[field:.metadata.ownerReference.controller:{}]'
+	// ctx := context.Background()
+	// if err := mgr.GetFieldIndexer().IndexField(ctx,
+	// 	&batchv1.Job{},
+	// 	constants.OwnerControllerField,
+	// 	indexJobByOwnerFluentPVCBinding,
+	// ); err != nil {
+	// 	return xerrors.Errorf("Unexpected error occurred.: %w", err)
+	// }
 
 	return ctrl.NewControllerManagedBy(mgr).
 		WithEventFilter(pred).
