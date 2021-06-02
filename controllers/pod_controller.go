@@ -98,8 +98,10 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	))
 	// TODO: Respects PodDisruptionBudget.
 	gracePeriodSeconds := int64(60 * 5) // 5 minutes
-	if *pod.DeletionGracePeriodSeconds > gracePeriodSeconds {
-		gracePeriodSeconds = *pod.DeletionGracePeriodSeconds
+	if pod.DeletionGracePeriodSeconds != nil {
+		if *pod.DeletionGracePeriodSeconds > gracePeriodSeconds {
+			gracePeriodSeconds = *pod.DeletionGracePeriodSeconds
+		}
 	}
 	deleteOptions := &client.DeleteOptions{
 		GracePeriodSeconds: &gracePeriodSeconds,
