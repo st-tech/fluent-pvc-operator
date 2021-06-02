@@ -58,27 +58,27 @@ func (r *PVCReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 			return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
 		}
 	}
-	if isFluentPVCBindingUnknown(b) {
-		logger.Info(fmt.Sprintf("FluentPVCBinding='%s' is unknown status, so skip processing.", b.Name))
+	if b.IsConditionUnknown() {
+		logger.Info(fmt.Sprintf("fluentpvcbinding='%s' is unknown status, so skip processing.", b.Name))
 		return ctrl.Result{}, nil
 	}
-	if !isFluentPVCBindingOutOfUse(b) {
-		logger.Info(fmt.Sprintf("FluentPVCBinding='%s' is not out of use yet.", b.Name))
+	if !b.IsConditionOutOfUse() {
+		logger.Info(fmt.Sprintf("fluentpvcbinding='%s' is not out of use yet.", b.Name))
 		return requeueResult(10 * time.Second), nil
 	}
 
 	logger.Info(fmt.Sprintf(
-		"PVC='%s' is finalizing because the status of FluentPVCBinding='%s' is OutOfUse.",
+		"pvc='%s' is finalizing because the status of fluentpvcbinding='%s' is OutOfUse.",
 		pvc.Name, b.Name,
 	))
-	if !isFluentPVCBindingFinalizerJobApplied(b) {
+	if !b.IsConditionFinalizerJobApplied() {
 		jobs := &batchv1.JobList{}
 		if err := r.List(ctx, jobs, client.MatchingFields(map[string]string{constants.OwnerControllerField: b.Name})); client.IgnoreNotFound(err) != nil {
 			return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
 		}
 		if len(jobs.Items) != 0 {
 			logger.Info(fmt.Sprintf(
-				"FluentPVCBinding='%s' status indicates any finalizer job is not applied, but some jobs are found: %+v",
+				"fluentpvcbinding='%s' status indicates any finalizer job is not applied, but some jobs are found: %+v",
 				b.Name, jobs.Items,
 			))
 			return requeueResult(10 * time.Second), nil
@@ -113,15 +113,15 @@ func (r *PVCReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 			return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
 		}
 	}
-	if !isFluentPVCBindingFinalizerJobSucceeded(b) && !isFluentPVCBindingFinalizerJobFailed(b) {
+	if !b.IsConditionFinalizerJobSucceeded() && !b.IsConditionFinalizerJobFailed() {
 		logger.Info(fmt.Sprintf(
-			"PVC='%s' is finalizing by FluentPVCBinding='%s'.",
+			"pvc='%s' is finalizing by fluentpvcbinding='%s'.",
 			pvc.Name, b.Name,
 		))
 		return requeueResult(10 * time.Second), nil
 	}
 
-	if isFluentPVCBindingFinalizerJobFailed(b) {
+	if b.IsConditionFinalizerJobFailed() {
 		fpvc := &fluentpvcv1alpha1.FluentPVC{}
 		if err := r.Get(ctx, client.ObjectKey{Name: metav1.GetControllerOf(b).Name}, fpvc); err != nil {
 			return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
@@ -133,7 +133,7 @@ func (r *PVCReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		logger.Info("Ignore the finalizer job failure.")
 	}
 
-	logger.Info(fmt.Sprintf("Remove the finalizer='%s' from PVC='%s'", constants.PVCFinalizerName, pvc.Name))
+	logger.Info(fmt.Sprintf("Remove the finalizer='%s' from pvc='%s'", constants.PVCFinalizerName, pvc.Name))
 	controllerutil.RemoveFinalizer(pvc, constants.PVCFinalizerName)
 	if err := r.Update(ctx, pvc); err != nil {
 		return ctrl.Result{}, xerrors.Errorf(
@@ -159,7 +159,7 @@ func (r *PVCReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		constants.OwnerControllerField,
 		indexJobByOwnerFluentPVCBinding,
 	); err != nil {
-		return xerrors.Errorf("Unexpected error occurred when indexing Job by FluentPVCBinding caused by: %w", err)
+		return xerrors.Errorf("Unexpected error occurred.: %w", err)
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).

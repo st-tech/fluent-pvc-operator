@@ -52,30 +52,6 @@ func isOwnerFluentPVC(owner *metav1.OwnerReference) bool {
 		owner.Kind == "FluentPVC"
 }
 
-func isFluentPVCBindingReady(b *fluentpvcv1alpha1.FluentPVCBinding) bool {
-	return meta.IsStatusConditionTrue(b.Status.Conditions, string(fluentpvcv1alpha1.FluentPVCBindingConditionReady))
-}
-
-func isFluentPVCBindingOutOfUse(b *fluentpvcv1alpha1.FluentPVCBinding) bool {
-	return meta.IsStatusConditionTrue(b.Status.Conditions, string(fluentpvcv1alpha1.FluentPVCBindingConditionOutOfUse))
-}
-
-func isFluentPVCBindingFinalizerJobApplied(b *fluentpvcv1alpha1.FluentPVCBinding) bool {
-	return meta.IsStatusConditionTrue(b.Status.Conditions, string(fluentpvcv1alpha1.FluentPVCBindingConditionFinalizerJobApplied))
-}
-
-func isFluentPVCBindingFinalizerJobSucceeded(b *fluentpvcv1alpha1.FluentPVCBinding) bool {
-	return meta.IsStatusConditionTrue(b.Status.Conditions, string(fluentpvcv1alpha1.FluentPVCBindingConditionFinalizerJobSucceeded))
-}
-
-func isFluentPVCBindingFinalizerJobFailed(b *fluentpvcv1alpha1.FluentPVCBinding) bool {
-	return meta.IsStatusConditionTrue(b.Status.Conditions, string(fluentpvcv1alpha1.FluentPVCBindingConditionFinalizerJobFailed))
-}
-
-func isFluentPVCBindingUnknown(b *fluentpvcv1alpha1.FluentPVCBinding) bool {
-	return meta.IsStatusConditionTrue(b.Status.Conditions, string(fluentpvcv1alpha1.FluentPVCBindingConditionUnknown))
-}
-
 func requeueResult(requeueAfter time.Duration) ctrl.Result {
 	return ctrl.Result{
 		Requeue:      true,
