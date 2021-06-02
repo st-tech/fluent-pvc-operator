@@ -31,7 +31,7 @@ type FluentPVCSpec struct {
 	// Retry the finalizer job until it succeeds.
 	//+kubebuiler:validation:Required
 	//+kubebuilder:default:true
-	RetryUntilFinalizerJobSucceeded bool `json:"ignoreIfFinalizerJobFailed,omitempty"`
+	RetryUntilFinalizerJobSucceeded bool `json:"retryUntilFinalizerJobSucceeded,omitempty"`
 	// Job template to finalize PVCs.
 	//+kubebuiler:validation:Required
 	PVCFinalizerJobSpecTemplate batchv1.JobSpec `json:"pvcFinalizerJobSpecTemplate"`

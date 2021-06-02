@@ -146,9 +146,6 @@ spec:
                 description: Delete the pod if the sidecar container termination is
                   detected.
                 type: boolean
-              ignoreIfFinalizerJobFailed:
-                description: Retry the finalizer job until it succeeds.
-                type: boolean
               pvcFinalizerJobSpecTemplate:
                 description: Job template to finalize PVCs.
                 properties:
@@ -6933,6 +6930,9 @@ spec:
                       backing this claim.
                     type: string
                 type: object
+              retryUntilFinalizerJobSucceeded:
+                description: Retry the finalizer job until it succeeds.
+                type: boolean
               sidecarContainerTemplate:
                 description: Sidecare containers templates that must include a fluentd
                   definition.
