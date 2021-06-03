@@ -103,13 +103,14 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 			gracePeriodSeconds = *pod.DeletionGracePeriodSeconds
 		}
 	}
+	propagationPolicy := metav1.DeletePropagationBackground
 	deleteOptions := &client.DeleteOptions{
 		GracePeriodSeconds: &gracePeriodSeconds,
 		Preconditions: &metav1.Preconditions{
 			UID:             &pod.UID,
 			ResourceVersion: &pod.ResourceVersion,
 		},
-		PropagationPolicy: func(p metav1.DeletionPropagation) *metav1.DeletionPropagation { return &p }(metav1.DeletePropagationBackground),
+		PropagationPolicy: &propagationPolicy,
 	}
 	if err := r.Delete(ctx, pod, deleteOptions); client.IgnoreNotFound(err) != nil {
 		return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
