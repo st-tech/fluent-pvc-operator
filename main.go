@@ -63,6 +63,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err = (&controllers.FluentPVCReconciler{
+		Client: mgr.GetClient(),
+		Log:    ctrl.Log.WithName("controllers").WithName("fluentpvc_controller"),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "fluentpvc_controller")
+		os.Exit(1)
+	}
 	if err = (&controllers.FluentPVCBindingReconciler{
 		Client: mgr.GetClient(),
 		Log:    ctrl.Log.WithName("controllers").WithName("fluentpvcbinding_controller"),
