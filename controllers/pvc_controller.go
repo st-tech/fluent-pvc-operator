@@ -25,15 +25,11 @@ import (
 	podutils "github.com/st-tech/fluent-pvc-operator/utils/pod"
 )
 
-//+kubebuilder:rbac:groups=fluent-pvc-operator.tech.zozo.com,resources=fluentpvcs,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=fluent-pvc-operator.tech.zozo.com,resources=fluentpvcs/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=fluent-pvc-operator.tech.zozo.com,resources=fluentpvcs/finalizers,verbs=update
-//+kubebuilder:rbac:groups=fluent-pvc-operator.tech.zozo.com,resources=fluentpvcbindings,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=fluent-pvc-operator.tech.zozo.com,resources=fluentpvcbindings/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=fluent-pvc-operator.tech.zozo.com,resources=fluentpvcbindings/finalizers,verbs=update
-//+kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
+//+kubebuilder:rbac:groups=fluent-pvc-operator.tech.zozo.com,resources=fluentpvcs,verbs=get;list;watch
+//+kubebuilder:rbac:groups=fluent-pvc-operator.tech.zozo.com,resources=fluentpvcbindings,verbs=get;list;watch
+//+kubebuilder:rbac:groups=fluent-pvc-operator.tech.zozo.com,resources=fluentpvcbindings/status,verbs=get
 //+kubebuilder:rbac:groups="batch",resources=jobs,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;delete
+//+kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;update
 
 type PVCReconciler struct {
 	client.Client
@@ -123,6 +119,18 @@ func (r *PVCReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 			pvc.Name, b.Name,
 		))
 		return requeueResult(10 * time.Second), nil
+	}
+
+	if isFluentPVCBindingFinalizerJobFailed(b) {
+		fpvc := &fluentpvcv1alpha1.FluentPVC{}
+		if err := r.Get(ctx, client.ObjectKey{Name: metav1.GetControllerOf(b).Name}, fpvc); err != nil {
+			return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
+		}
+		if fpvc.Spec.RetryUntilFinalizerJobSucceeded {
+			logger.Info(fmt.Sprintf("Retry until the finalizer job='%s' is succeeded.", b.Name))
+			return requeueResult(10 * time.Second), nil
+		}
+		logger.Info("Ignore the finalizer job failure.")
 	}
 
 	logger.Info(fmt.Sprintf("Remove the finalizer='%s' from PVC='%s'", constants.PVCFinalizerName, pvc.Name))
