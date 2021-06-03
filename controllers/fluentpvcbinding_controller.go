@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -130,6 +131,10 @@ func (r *FluentPVCBindingReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		}
 	case !podFound && pvcFound:
 		if b.IsConditionFinalizerJobSucceeded() {
+			if controllerutil.ContainsFinalizer(pvc, constants.PVCFinalizerName) {
+				logger.Info(fmt.Sprintf("Skip processing because the finalizer of fluentpvcbinding='%s' is not removed.", b.Name))
+				return ctrl.Result{}, nil
+			}
 			logger.Info(fmt.Sprintf("Delete fluentpvcbinding='%s' because the finalizer jobs are succeeded", b.Name))
 			if err := r.Delete(ctx, b); client.IgnoreNotFound(err) != nil {
 				return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)

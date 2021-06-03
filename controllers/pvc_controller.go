@@ -55,6 +55,9 @@ func (r *PVCReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	{
 		owner := metav1.GetControllerOf(pvc)
 		if err := r.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: owner.Name}, b); err != nil {
+			if apierrors.IsNotFound(err) {
+				return ctrl.Result{}, nil
+			}
 			return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
 		}
 	}
