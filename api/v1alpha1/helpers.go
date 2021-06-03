@@ -53,27 +53,27 @@ func (b *FluentPVCBinding) SetConditionUnknown(reason, message string) {
 	b.setConditionTrue(FluentPVCBindingConditionUnknown, reason, message)
 }
 
-func (b *FluentPVCBinding) UnsetConditionReady(reason, message string) {
+func (b *FluentPVCBinding) SetConditionNotReady(reason, message string) {
 	b.setConditionFalse(FluentPVCBindingConditionReady, reason, message)
 }
 
-func (b *FluentPVCBinding) UnsetConditionOutOfUse(reason, message string) {
+func (b *FluentPVCBinding) SetConditionNotOutOfUse(reason, message string) {
 	b.setConditionFalse(FluentPVCBindingConditionOutOfUse, reason, message)
 }
 
-func (b *FluentPVCBinding) UnsetConditionFinalizerJobApplied(reason, message string) {
+func (b *FluentPVCBinding) SetConditionNotFinalizerJobApplied(reason, message string) {
 	b.setConditionFalse(FluentPVCBindingConditionFinalizerJobApplied, reason, message)
 }
 
-func (b *FluentPVCBinding) UnsetConditionFinalizerJobSucceeded(reason, message string) {
+func (b *FluentPVCBinding) SetConditionNotFinalizerJobSucceeded(reason, message string) {
 	b.setConditionFalse(FluentPVCBindingConditionFinalizerJobSucceeded, reason, message)
 }
 
-func (b *FluentPVCBinding) UnsetConditionFinalizerJobFailed(reason, message string) {
+func (b *FluentPVCBinding) SetConditionNotFinalizerJobFailed(reason, message string) {
 	b.setConditionFalse(FluentPVCBindingConditionFinalizerJobFailed, reason, message)
 }
 
-func (b *FluentPVCBinding) UnsetConditionUnknown(reason, message string) {
+func (b *FluentPVCBinding) SetConditionNotUnknown(reason, message string) {
 	b.setConditionFalse(FluentPVCBindingConditionUnknown, reason, message)
 }
 
