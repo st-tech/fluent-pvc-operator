@@ -6930,9 +6930,6 @@ spec:
                       backing this claim.
                     type: string
                 type: object
-              retryUntilFinalizerJobSucceeded:
-                description: Retry the finalizer job until it succeeds.
-                type: boolean
               sidecarContainerTemplate:
                 description: Sidecare containers templates that must include a fluentd
                   definition.

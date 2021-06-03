@@ -171,6 +171,21 @@ func (r *FluentPVCBindingReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
 		}
 		if len(jobs.Items) == 0 {
+			// TODO: what happens when fluentpvcbinding is terminating.
+			reason := "FinalizerJobNotFound"
+			message := fmt.Sprintf("Finalizer jobs for fluentpvcbinding='%s' is not found.", b.Name)
+			if b.IsConditionFinalizerJobApplied() {
+				b.UnsetConditionFinalizerJobApplied(reason, message)
+			}
+			if b.IsConditionFinalizerJobSucceeded() {
+				b.UnsetConditionFinalizerJobSucceeded(reason, message)
+			}
+			if b.IsConditionFinalizerJobFailed() {
+				b.UnsetConditionFinalizerJobFailed(reason, message)
+			}
+			if err := r.Status().Update(ctx, b); err != nil {
+				return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
+			}
 			logger.Info(fmt.Sprintf("Wait for applying some finalizer jobs for fluentpvcbinding='%s'", b.Name))
 			return ctrl.Result{}, nil
 		}

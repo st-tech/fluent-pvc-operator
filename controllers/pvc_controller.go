@@ -125,15 +125,8 @@ func (r *PVCReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	}
 
 	if b.IsConditionFinalizerJobFailed() {
-		fpvc := &fluentpvcv1alpha1.FluentPVC{}
-		if err := r.Get(ctx, client.ObjectKey{Name: metav1.GetControllerOf(b).Name}, fpvc); err != nil {
-			return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
-		}
-		if fpvc.Spec.RetryUntilFinalizerJobSucceeded {
-			logger.Info(fmt.Sprintf("Retry until the finalizer job='%s' is succeeded.", b.Name))
-			return requeueResult(10 * time.Second), nil
-		}
-		logger.Info("Ignore the finalizer job failure.")
+		logger.Info(fmt.Sprintf("Skip processing because the finalizer job='%s' is failed.", b.Name))
+		return ctrl.Result{}, nil
 	}
 
 	logger.Info(fmt.Sprintf("Remove the finalizer='%s' from pvc='%s'", constants.PVCFinalizerName, pvc.Name))
