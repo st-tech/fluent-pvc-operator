@@ -18,6 +18,10 @@ import (
 	//+kubebuilder:scaffold:imports
 
 	fluentpvcv1alpha1 "github.com/st-tech/fluent-pvc-operator/api/v1alpha1"
+	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
@@ -53,6 +57,22 @@ var _ = BeforeSuite(func() {
 	err = fluentpvcv1alpha1.AddToScheme(scheme)
 	Expect(err).NotTo(HaveOccurred())
 
+	err = admissionv1beta1.AddToScheme(scheme)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = batchv1.AddToScheme(scheme)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = storagev1.AddToScheme(scheme)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = corev1.AddToScheme(scheme)
+	Expect(err).NotTo(HaveOccurred())
+
+	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
+	Expect(err).NotTo(HaveOccurred())
+	Expect(k8sClient).NotTo(BeNil())
+
 	//+kubebuilder:scaffold:scheme
 
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
@@ -61,30 +81,30 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	err = (&FluentPVCReconciler{
-		Client: mgr.GetClient(),
+		Client: k8sClient,
 		Log:    ctrl.Log.WithName("controllers").WithName("fluentpvc_controller"),
-		Scheme: mgr.GetScheme(),
+		Scheme: scheme,
 	}).SetupWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
 	err = (&FluentPVCBindingReconciler{
-		Client: mgr.GetClient(),
+		Client: k8sClient,
 		Log:    ctrl.Log.WithName("controllers").WithName("fluentpvcbinding_controller"),
-		Scheme: mgr.GetScheme(),
+		Scheme: scheme,
 	}).SetupWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
 	err = (&PVCReconciler{
-		Client: mgr.GetClient(),
+		Client: k8sClient,
 		Log:    ctrl.Log.WithName("controllers").WithName("pvc_controller"),
-		Scheme: mgr.GetScheme(),
+		Scheme: scheme,
 	}).SetupWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
 	err = (&PodReconciler{
-		Client: mgr.GetClient(),
+		Client: k8sClient,
 		Log:    ctrl.Log.WithName("controllers").WithName("pod_controller"),
-		Scheme: mgr.GetScheme(),
+		Scheme: scheme,
 	}).SetupWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
@@ -92,10 +112,6 @@ var _ = BeforeSuite(func() {
 		err = mgr.Start(ctrl.SetupSignalHandler())
 		Expect(err).NotTo(HaveOccurred())
 	}()
-
-	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
-	Expect(err).NotTo(HaveOccurred())
-	Expect(k8sClient).NotTo(BeNil())
 
 }, 60)
 
