@@ -174,17 +174,23 @@ func (r *FluentPVCBindingReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			// TODO: what happens when fluentpvcbinding is terminating.
 			reason := "FinalizerJobNotFound"
 			message := fmt.Sprintf("Finalizer jobs for fluentpvcbinding='%s' is not found.", b.Name)
+			needUpdate := false
 			if b.IsConditionFinalizerJobApplied() {
 				b.SetConditionNotFinalizerJobApplied(reason, message)
+				needUpdate = true
 			}
 			if b.IsConditionFinalizerJobSucceeded() {
 				b.SetConditionNotFinalizerJobSucceeded(reason, message)
+				needUpdate = true
 			}
 			if b.IsConditionFinalizerJobFailed() {
 				b.SetConditionNotFinalizerJobFailed(reason, message)
+				needUpdate = true
 			}
-			if err := r.Status().Update(ctx, b); err != nil {
-				return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
+			if needUpdate {
+				if err := r.Status().Update(ctx, b); err != nil {
+					return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
+				}
 			}
 			logger.Info(fmt.Sprintf("Wait for applying some finalizer jobs for fluentpvcbinding='%s'", b.Name))
 			return ctrl.Result{}, nil
@@ -196,6 +202,7 @@ func (r *FluentPVCBindingReconciler) Reconcile(ctx context.Context, req ctrl.Req
 				jobNames = append(jobNames, j.Name)
 			}
 			message := fmt.Sprintf("Found an illegal state that multiple finalizer jobs %+v are found.", jobNames)
+			logger.Error(xerrors.New(message), message)
 			b.SetConditionUnknown(reason, message)
 			if err := r.Status().Update(ctx, b); err != nil {
 				return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
@@ -203,21 +210,29 @@ func (r *FluentPVCBindingReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			return ctrl.Result{}, xerrors.New(message)
 		}
 		j := &jobs.Items[0]
-		message := fmt.Sprintf("Update the status fluentpvcbinding='%s' 'FinalizerJobApplied' because some finalizer jobs are already applied: %+v", b.Name, j.Name)
-		logger.Info(message)
-		b.SetConditionFinalizerJobApplied("FinalizerJobFound", message)
+		needUpdate := false
+		if !b.IsConditionFinalizerJobApplied() {
+			needUpdate = true
+			message := fmt.Sprintf("Update the status fluentpvcbinding='%s' 'FinalizerJobApplied' because some finalizer jobs are already applied: %+v", b.Name, j.Name)
+			logger.Info(message)
+			b.SetConditionFinalizerJobApplied("FinalizerJobFound", message)
+		}
 		if isJobSucceeded(j) {
+			needUpdate = true
 			message := fmt.Sprintf("Update the status fluentpvcbinding='%s' 'FinalizerJobSucceeded' because the finalizer job='%s' is succeeded", b.Name, j.Name)
 			logger.Info(message)
 			b.SetConditionFinalizerJobSucceeded("FinalizerJobSucceeded", message)
 		}
 		if isJobFailed(j) {
+			needUpdate = true
 			message := fmt.Sprintf("Update the status fluentpvcbinding='%s' 'FinalizerJobFailed' because the finalizer job='%s' is failed.", b.Name, j.Name)
 			logger.Info(message)
 			b.SetConditionFinalizerJobFailed("FinalizerJobFailed", message)
 		}
-		if err := r.Status().Update(ctx, b); err != nil {
-			return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
+		if needUpdate {
+			if err := r.Status().Update(ctx, b); err != nil {
+				return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
+			}
 		}
 	case podFound && !pvcFound:
 		switch pod.Status.Phase {
