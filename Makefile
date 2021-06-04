@@ -111,15 +111,18 @@ KIND_VERSION := 0.10.0
 BINDIR := $(shell pwd)/bin
 KIND_CLUSTER_NAME := fluent-pvc-e2e
 KIND := $(BINDIR)/kind
-KUSTOMIZE := ../bin/kustomize
+KUSTOMIZE_DIR := $(shell pwd)/config/default
 TEST_KUBERNETES_VERSION := 1.20
 KUBERNETES_VERSION := 1.20.2
+FLUENT_PVC_NAMESPACE := fluent-pvc-operator-system
 export TEST_KUBERNETES_VERSION
 
 .PHONY: launch-kind
 launch-kind:
 	$(KIND) create cluster --name=$(KIND_CLUSTER_NAME) --image kindest/node:v$(KUBERNETES_VERSION)
 	$(BINDIR)/kubectl config use-context kind-$(KIND_CLUSTER_NAME)
+	$(BINDIR)/kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.3.1/cert-manager.yaml
+	$(BINDIR)/kind load docker-image --name $(KIND_CLUSTER_NAME) $(IMG)
 
 .PHONY: shutdown-kind
 shutdown-kind:
@@ -128,18 +131,20 @@ shutdown-kind:
 .PHONY: setup-e2e
 setup-e2e:
 	mkdir -p $(BINDIR)
-	curl -o $(BINDIR)/kind -sfL https://kind.sigs.k8s.io/dl/v$(KIND_VERSION)/kind-linux-amd64
-	curl -o $(BINDIR)/kubectl -sfL https://storage.googleapis.com/kubernetes-release/release/v$(KUBERNETES_VERSION)/bin/linux/amd64/kubectl
+	curl -o $(BINDIR)/kind -sfL https://kind.sigs.k8s.io/dl/v$(KIND_VERSION)/kind-darwin-amd64
+	curl -o $(BINDIR)/kubectl -sfL https://storage.googleapis.com/kubernetes-release/release/v$(KUBERNETES_VERSION)/bin/darwin/amd64/kubectl
 	chmod a+x $(BINDIR)/kubectl $(BINDIR)/kind
 
-# curl -o $(BINDIR)/kind -sfL https://kind.sigs.k8s.io/dl/v$(KIND_VERSION)/kind-darwin-amd64
-# curl -o $(BINDIR)/kubectl -sfL https://storage.googleapis.com/kubernetes-release/release/v$(KUBERNETES_VERSION)/bin/darwin/amd64/kubectl
-
 .PHONY: e2e-test
-e2e-test: manifests generate fmt vet # $(SERVER_CERT_FILES)
+e2e-test: manifests generate fmt vet
 	$(MAKE) setup-e2e
 	$(MAKE) shutdown-kind
 	$(MAKE) launch-kind
+	while [ $$($(BINDIR)/kubectl get pod -n cert-manager | awk '$$3 == "Running"' | wc -l) -ne 3 ]; do sleep 5; done
+	sleep 10
+	$(BINDIR)/kustomize build $(KUSTOMIZE_DIR) | $(BINDIR)/kubectl apply -f -
+	while [ $$($(BINDIR)/kubectl get pod -n $(FLUENT_PVC_NAMESPACE) | awk '$$3 == "Running"' | wc -l) -ne 1 ]; do sleep 5; done
+	sleep 10
 	mkdir -p ${ENVTEST_ASSETS_DIR}
 	test -f ${ENVTEST_ASSETS_DIR}/setup-envtest.sh || curl -sSLo ${ENVTEST_ASSETS_DIR}/setup-envtest.sh https://raw.githubusercontent.com/kubernetes-sigs/controller-runtime/v0.7.2/hack/setup-envtest.sh
 	source ${ENVTEST_ASSETS_DIR}/setup-envtest.sh; fetch_envtest_tools $(ENVTEST_ASSETS_DIR); setup_envtest_env $(ENVTEST_ASSETS_DIR); USE_EXISTING_CLUSTER=true go test ./controllers -coverprofile cover.out
