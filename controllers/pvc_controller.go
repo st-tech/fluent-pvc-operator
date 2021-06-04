@@ -126,7 +126,7 @@ func (r *PVCReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 
 	if b.IsConditionFinalizerJobFailed() {
 		logger.Info(fmt.Sprintf("Skip processing because the finalizer job='%s' is failed.", b.Name))
-		return ctrl.Result{}, nil
+		return requeueResult(10 * time.Second), nil
 	}
 
 	logger.Info(fmt.Sprintf("Remove the finalizer='%s' from pvc='%s'", constants.PVCFinalizerName, pvc.Name))
