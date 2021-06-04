@@ -52,10 +52,7 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	}
 
 	if !isPodReadyPhase(pod) {
-		logger.Info(fmt.Sprintf(
-			"Skip processing because pod='%s' is '%s' status (%+v)",
-			pod.Name, pod.Status.Phase, pod.Status,
-		))
+		logger.Info(fmt.Sprintf("Skip processing because pod='%s' is '%s' status.", pod.Name, pod.Status.Phase))
 		return ctrl.Result{}, nil
 	}
 
@@ -93,7 +90,7 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	}
 
 	logger.Info(fmt.Sprintf(
-		"Delete the pod='%s' because the container='%s' exited and the exitcode is %d.",
+		"Delete the pod='%s' in the background because the container='%s' exited and the exitcode is %d.",
 		pod.Name, containerName, status.LastTerminationState.Terminated.ExitCode,
 	))
 	// TODO: Respects PodDisruptionBudget.
@@ -115,8 +112,6 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	if err := r.Delete(ctx, pod, deleteOptions); client.IgnoreNotFound(err) != nil {
 		return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
 	}
-	logger.Info(fmt.Sprintf("Deleted the pod='%s' in the background.", pod.Name))
-
 	return ctrl.Result{}, nil
 }
 
