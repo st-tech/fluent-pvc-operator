@@ -28,10 +28,6 @@ type FluentPVCSpec struct {
 	//+kubebuiler:validation:Required
 	//+kubebuilder:default:true
 	DeletePodIfSidecarContainerTerminationDetected bool `json:"deletePodIfSidecarContainerTerminationDetected,omitempty"`
-	// Retry the finalizer job until it succeeds.
-	//+kubebuiler:validation:Required
-	//+kubebuilder:default:true
-	RetryUntilFinalizerJobSucceeded bool `json:"ignoreIfFinalizerJobFailed,omitempty"`
 	// Job template to finalize PVCs.
 	//+kubebuiler:validation:Required
 	PVCFinalizerJobSpecTemplate batchv1.JobSpec `json:"pvcFinalizerJobSpecTemplate"`

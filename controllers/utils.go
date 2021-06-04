@@ -1,11 +1,12 @@
 package controllers
 
 import (
+	"context"
 	"time"
 
+	"golang.org/x/xerrors"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -50,30 +51,6 @@ func isOwnerFluentPVC(owner *metav1.OwnerReference) bool {
 	return owner != nil &&
 		owner.APIVersion == fluentpvcv1alpha1.GroupVersion.String() &&
 		owner.Kind == "FluentPVC"
-}
-
-func isFluentPVCBindingReady(b *fluentpvcv1alpha1.FluentPVCBinding) bool {
-	return meta.IsStatusConditionTrue(b.Status.Conditions, string(fluentpvcv1alpha1.FluentPVCBindingConditionReady))
-}
-
-func isFluentPVCBindingOutOfUse(b *fluentpvcv1alpha1.FluentPVCBinding) bool {
-	return meta.IsStatusConditionTrue(b.Status.Conditions, string(fluentpvcv1alpha1.FluentPVCBindingConditionOutOfUse))
-}
-
-func isFluentPVCBindingFinalizerJobApplied(b *fluentpvcv1alpha1.FluentPVCBinding) bool {
-	return meta.IsStatusConditionTrue(b.Status.Conditions, string(fluentpvcv1alpha1.FluentPVCBindingConditionFinalizerJobApplied))
-}
-
-func isFluentPVCBindingFinalizerJobSucceeded(b *fluentpvcv1alpha1.FluentPVCBinding) bool {
-	return meta.IsStatusConditionTrue(b.Status.Conditions, string(fluentpvcv1alpha1.FluentPVCBindingConditionFinalizerJobSucceeded))
-}
-
-func isFluentPVCBindingFinalizerJobFailed(b *fluentpvcv1alpha1.FluentPVCBinding) bool {
-	return meta.IsStatusConditionTrue(b.Status.Conditions, string(fluentpvcv1alpha1.FluentPVCBindingConditionFinalizerJobFailed))
-}
-
-func isFluentPVCBindingUnknown(b *fluentpvcv1alpha1.FluentPVCBinding) bool {
-	return meta.IsStatusConditionTrue(b.Status.Conditions, string(fluentpvcv1alpha1.FluentPVCBindingConditionUnknown))
 }
 
 func requeueResult(requeueAfter time.Duration) ctrl.Result {
@@ -150,6 +127,25 @@ func findContainerStatusByName(status *corev1.PodStatus, name string) *corev1.Co
 		if c.Name == name {
 			return c.DeepCopy()
 		}
+	}
+	return nil
+}
+
+func isCreatedBefore(obj client.Object, duration time.Duration) bool {
+	threshold := metav1.NewTime(time.Now().Add(-duration))
+	creationTimestamp := obj.GetCreationTimestamp()
+	return creationTimestamp.Before(&threshold)
+}
+
+func updateOrNothingControllerReference(ctx context.Context, c client.Client, owner, controllee client.Object) error {
+	if metav1.IsControlledBy(controllee, owner) {
+		return nil
+	}
+	if err := ctrl.SetControllerReference(owner, controllee, c.Scheme()); err != nil {
+		return xerrors.Errorf("Unexpected error occurred: %w", err)
+	}
+	if err := c.Update(ctx, controllee); err != nil {
+		return xerrors.Errorf("Unexpected error occurred: %w", err)
 	}
 	return nil
 }
