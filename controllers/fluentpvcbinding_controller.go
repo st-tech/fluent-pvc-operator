@@ -189,21 +189,30 @@ func (r *FluentPVCBindingReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			logger.Info(fmt.Sprintf("Wait for applying some finalizer jobs for fluentpvcbinding='%s'", b.Name))
 			return ctrl.Result{}, nil
 		}
-		message := fmt.Sprintf("Update the status fluentpvcbinding='%s' 'FinalizerJobApplied' because some finalizer jobs are already applied: %+v", b.Name, jobs.Items)
+		if len(jobs.Items) != 1 {
+			reason := "MultipleFinalizerJobsFound"
+			var jobNames []string
+			for _, j := range jobs.Items {
+				jobNames = append(jobNames, j.Name)
+			}
+			message := fmt.Sprintf("Found an illegal state that multiple finalizer jobs %+v are found.", jobNames)
+			b.SetConditionUnknown(reason, message)
+			if err := r.Status().Update(ctx, b); err != nil {
+				return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
+			}
+			return ctrl.Result{}, xerrors.New(message)
+		}
+		j := &jobs.Items[0]
+		message := fmt.Sprintf("Update the status fluentpvcbinding='%s' 'FinalizerJobApplied' because some finalizer jobs are already applied: %+v", b.Name, j.Name)
 		logger.Info(message)
 		b.SetConditionFinalizerJobApplied("FinalizerJobFound", message)
-
-		for _, j := range jobs.Items {
-			if !isJobFinished(&j) {
-				continue
-			}
-			if isJobSucceeded(&j) {
-				message := fmt.Sprintf("Update the status fluentpvcbinding='%s' 'FinalizerJobSucceeded' because the finalizer job is succeeded: %+v", b.Name, j)
-				logger.Info(message)
-				b.SetConditionFinalizerJobSucceeded("FinalizerJobSucceeded", message)
-				break
-			}
-			message := fmt.Sprintf("Update the status fluentpvcbinding='%s' 'FinalizerJobFailed' because the finalizer job is failed: %+v", b.Name, j)
+		if isJobSucceeded(j) {
+			message := fmt.Sprintf("Update the status fluentpvcbinding='%s' 'FinalizerJobSucceeded' because the finalizer job='%s' is succeeded", b.Name, j.Name)
+			logger.Info(message)
+			b.SetConditionFinalizerJobSucceeded("FinalizerJobSucceeded", message)
+		}
+		if isJobFailed(j) {
+			message := fmt.Sprintf("Update the status fluentpvcbinding='%s' 'FinalizerJobFailed' because the finalizer job='%s' is failed.", b.Name, j.Name)
 			logger.Info(message)
 			b.SetConditionFinalizerJobFailed("FinalizerJobFailed", message)
 		}
