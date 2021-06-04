@@ -5,7 +5,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	fluentpvcv1alpha1 "github.com/st-tech/fluent-pvc-operator/api/v1alpha1"
+
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -13,6 +13,9 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	fluentpvcv1alpha1 "github.com/st-tech/fluent-pvc-operator/api/v1alpha1"
+	"github.com/st-tech/fluent-pvc-operator/constants"
 )
 
 var _ = Describe("Pod Mutation Webhook", func() {
@@ -127,7 +130,7 @@ var _ = Describe("Pod Mutation Webhook", func() {
 		ctx := context.Background()
 		pod := testPod.DeepCopy()
 		pod.SetAnnotations(map[string]string{
-			PodAnnotationFluentPVCName: testFluentPVCName,
+			constants.PodAnnotationFluentPVCName: testFluentPVCName,
 		})
 		{
 			err := k8sClient.Create(ctx, pod)
@@ -185,7 +188,7 @@ var _ = Describe("Pod Mutation Webhook", func() {
 		ctx := context.Background()
 		pod := testPod.DeepCopy()
 		pod.SetAnnotations(map[string]string{
-			PodAnnotationFluentPVCName: "IS_NOT_FOUND",
+			constants.PodAnnotationFluentPVCName: "IS_NOT_FOUND",
 		})
 		err := k8sClient.Create(ctx, pod)
 		Expect(err).ShouldNot(Succeed())

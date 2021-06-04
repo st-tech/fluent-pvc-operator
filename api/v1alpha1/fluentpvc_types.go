@@ -27,7 +27,7 @@ type FluentPVCSpec struct {
 	// Delete the pod if the sidecar container termination is detected.
 	//+kubebuiler:validation:Required
 	//+kubebuilder:default:true
-	DeletePodIfSidecarContainerTerminationDetected bool `json:"deletePodIfSidecarContainerTerminationDetected"`
+	DeletePodIfSidecarContainerTerminationDetected bool `json:"deletePodIfSidecarContainerTerminationDetected,omitempty"`
 	// Job template to finalize PVCs.
 	//+kubebuiler:validation:Required
 	PVCFinalizerJobSpecTemplate batchv1.JobSpec `json:"pvcFinalizerJobSpecTemplate"`

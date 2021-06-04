@@ -7,6 +7,64 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
+  - ""
+  resources:
+  - persistentvolumeclaims
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - delete
+  - get
+  - list
+  - watch
+- apiGroups:
+  - batch
+  resources:
+  - jobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - fluent-pvc-operator.tech.zozo.com
+  resources:
+  - fluentpvcbindings
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - fluent-pvc-operator.tech.zozo.com
+  resources:
+  - fluentpvcbindings/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - fluent-pvc-operator.tech.zozo.com
+  resources:
+  - fluentpvcbindings/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - fluent-pvc-operator.tech.zozo.com
   resources:
   - fluentpvcs

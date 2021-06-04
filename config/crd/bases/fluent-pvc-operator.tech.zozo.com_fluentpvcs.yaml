@@ -8000,7 +8000,6 @@ spec:
                 type: string
             required:
             - commonMountPath
-            - deletePodIfSidecarContainerTerminationDetected
             - pvcFinalizerJobSpecTemplate
             - pvcSpecTemplate
             - sidecarContainerTemplate
