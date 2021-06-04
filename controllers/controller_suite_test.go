@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 
@@ -30,6 +31,8 @@ import (
 var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
+var ctx context.Context
+var cancel context.CancelFunc
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -42,9 +45,10 @@ func TestAPIs(t *testing.T) {
 var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
+	ctx, cancel = context.WithCancel(context.TODO())
+
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
-		// TODO: Add all configs
 		CRDDirectoryPaths:     []string{filepath.Join("..", "config", "crd", "bases")},
 		ErrorIfCRDPathMissing: true,
 	}
@@ -80,36 +84,36 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	err = (&FluentPVCReconciler{
-		Client: k8sClient,
-		Log:    ctrl.Log.WithName("controllers").WithName("fluentpvc_controller"),
-		Scheme: scheme,
-	}).SetupWithManager(mgr)
-	Expect(err).NotTo(HaveOccurred())
+	// err = (&FluentPVCReconciler{
+	// 	Client: k8sClient,
+	// 	Log:    ctrl.Log.WithName("controllers").WithName("fluentpvc_controller"),
+	// 	Scheme: scheme,
+	// }).SetupWithManager(mgr)
+	// Expect(err).NotTo(HaveOccurred())
 
-	err = (&FluentPVCBindingReconciler{
-		Client: k8sClient,
-		Log:    ctrl.Log.WithName("controllers").WithName("fluentpvcbinding_controller"),
-		Scheme: scheme,
-	}).SetupWithManager(mgr)
-	Expect(err).NotTo(HaveOccurred())
+	// err = (&FluentPVCBindingReconciler{
+	// 	Client: k8sClient,
+	// 	Log:    ctrl.Log.WithName("controllers").WithName("fluentpvcbinding_controller"),
+	// 	Scheme: scheme,
+	// }).SetupWithManager(mgr)
+	// Expect(err).NotTo(HaveOccurred())
 
-	err = (&PVCReconciler{
-		Client: k8sClient,
-		Log:    ctrl.Log.WithName("controllers").WithName("pvc_controller"),
-		Scheme: scheme,
-	}).SetupWithManager(mgr)
-	Expect(err).NotTo(HaveOccurred())
+	// err = (&PVCReconciler{
+	// 	Client: k8sClient,
+	// 	Log:    ctrl.Log.WithName("controllers").WithName("pvc_controller"),
+	// 	Scheme: scheme,
+	// }).SetupWithManager(mgr)
+	// Expect(err).NotTo(HaveOccurred())
 
-	err = (&PodReconciler{
-		Client: k8sClient,
-		Log:    ctrl.Log.WithName("controllers").WithName("pod_controller"),
-		Scheme: scheme,
-	}).SetupWithManager(mgr)
-	Expect(err).NotTo(HaveOccurred())
+	// err = (&PodReconciler{
+	// 	Client: k8sClient,
+	// 	Log:    ctrl.Log.WithName("controllers").WithName("pod_controller"),
+	// 	Scheme: scheme,
+	// }).SetupWithManager(mgr)
+	// Expect(err).NotTo(HaveOccurred())
 
 	go func() {
-		err = mgr.Start(ctrl.SetupSignalHandler())
+		err = mgr.Start(ctx)
 		Expect(err).NotTo(HaveOccurred())
 	}()
 
