@@ -82,7 +82,7 @@ var _ = Describe("PVC controller", func() {
 							Containers: []corev1.Container{
 								{
 									Name:    testFinalizerContainerName,
-									Command: []string{"echo", "test"},
+									Command: []string{"sleep", "1000"},
 									Image:   "alpine",
 								},
 							},
@@ -110,7 +110,7 @@ var _ = Describe("PVC controller", func() {
 		err := k8sClient.Delete(ctx, testFluentPVC)
 		Expect(err).NotTo(HaveOccurred())
 	})
-	It("should create a PVC and a FluentPVCBinding", func() {
+	It("should pod ready", func() {
 		ctx := context.Background()
 		pod := testPod.DeepCopy()
 		pod.SetAnnotations(map[string]string{
@@ -131,13 +131,16 @@ var _ = Describe("PVC controller", func() {
 				if err != nil {
 					return err
 				}
+				if mutPod.Status.Phase != corev1.PodRunning {
+					return errors.New("Pod is not running.")
+				}
 				for _, stat := range mutPod.Status.ContainerStatuses {
 					if stat.Ready != true {
-						return errors.New("Pod conditions are not ready.")
+						return errors.New("Pod ContainerStatuses are not ready.")
 					}
 				}
 				return nil
-			}).Should(Succeed())
+			}, 20).Should(Succeed())
 		}
 
 	})

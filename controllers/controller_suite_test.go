@@ -84,34 +84,6 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	// err = (&FluentPVCReconciler{
-	// 	Client: k8sClient,
-	// 	Log:    ctrl.Log.WithName("controllers").WithName("fluentpvc_controller"),
-	// 	Scheme: scheme,
-	// }).SetupWithManager(mgr)
-	// Expect(err).NotTo(HaveOccurred())
-
-	// err = (&FluentPVCBindingReconciler{
-	// 	Client: k8sClient,
-	// 	Log:    ctrl.Log.WithName("controllers").WithName("fluentpvcbinding_controller"),
-	// 	Scheme: scheme,
-	// }).SetupWithManager(mgr)
-	// Expect(err).NotTo(HaveOccurred())
-
-	// err = (&PVCReconciler{
-	// 	Client: k8sClient,
-	// 	Log:    ctrl.Log.WithName("controllers").WithName("pvc_controller"),
-	// 	Scheme: scheme,
-	// }).SetupWithManager(mgr)
-	// Expect(err).NotTo(HaveOccurred())
-
-	// err = (&PodReconciler{
-	// 	Client: k8sClient,
-	// 	Log:    ctrl.Log.WithName("controllers").WithName("pod_controller"),
-	// 	Scheme: scheme,
-	// }).SetupWithManager(mgr)
-	// Expect(err).NotTo(HaveOccurred())
-
 	go func() {
 		err = mgr.Start(ctx)
 		Expect(err).NotTo(HaveOccurred())
