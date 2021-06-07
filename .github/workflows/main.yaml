@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - 'main'
-      - 'feature/e2e-test'
 
 jobs:
   build:
@@ -15,7 +14,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-    - name: Set up Golang 
+    - name: Set up Golang
       uses: actions/setup-go@v2
       with:
         go-version: '1.16'
@@ -30,13 +29,9 @@ jobs:
     # Setup tmate session to debug via SSH. See https://github.com/mxschmitt/action-tmate
     # - uses: mxschmitt/action-tmate@v1
 
-    - name: make docker-build
-      run: |
-        make docker-build IMG=${DOCKER_IMAGE_URI}:${DOCKER_TAG}
-
     - name: make e2e-test
       run: |
-        make e2e-test
+        make clean-e2e-test IMG=${DOCKER_IMAGE_URI}:${DOCKER_TAG}
 
     - name: make docker-push
       run: |
