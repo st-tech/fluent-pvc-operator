@@ -27,7 +27,7 @@ spec:
       containers:
       - command:
         - /manager
-        image: controller:latest
+        image: controller:0.0.1
         imagePullPolicy: IfNotPresent
         name: manager
         securityContext:
