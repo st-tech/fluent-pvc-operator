@@ -29,13 +29,9 @@ jobs:
     # Setup tmate session to debug via SSH. See https://github.com/mxschmitt/action-tmate
     # - uses: mxschmitt/action-tmate@v1
 
-    - name: make docker-build
-      run: |
-        make docker-build IMG=${DOCKER_IMAGE_URI}:${DOCKER_TAG}
-
     - name: make e2e-test
       run: |
-        make e2e-test
+        make clean-e2e-test IMG=${DOCKER_IMAGE_URI}:${DOCKER_TAG}
 
     - name: make docker-push
       run: |
