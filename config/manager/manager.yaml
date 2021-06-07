@@ -27,7 +27,7 @@ spec:
       containers:
       - command:
         - /manager
-        image: controller:0.0.1
+        image: ghcr.io/st-tech/fluent-pvc-operator:0.0.1
         imagePullPolicy: IfNotPresent
         name: manager
         securityContext:

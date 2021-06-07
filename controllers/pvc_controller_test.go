@@ -140,7 +140,7 @@ var _ = Describe("PVC controller", func() {
 					}
 				}
 				return nil
-			}, 20).Should(Succeed())
+			}, 60).Should(Succeed())
 		}
 
 	})

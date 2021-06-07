@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DOCKER_IMAGE_URI: ghcr.io/${{ github.repository_owner }}/fluent-pvc-operator
-      DOCKER_TAG: v1
+      DOCKER_TAG: '0.0.1'
     steps:
     - uses: actions/checkout@v2
 
@@ -30,13 +30,13 @@ jobs:
     # Setup tmate session to debug via SSH. See https://github.com/mxschmitt/action-tmate
     # - uses: mxschmitt/action-tmate@v1
 
+    - name: make docker-build
+      run: |
+        make docker-build IMG=${DOCKER_IMAGE_URI}:${DOCKER_TAG}
+
     - name: make e2e-test
       run: |
         make e2e-test
-
-    - name: make docker-build include tests
-      run: |
-        make docker-build IMG=${DOCKER_IMAGE_URI}:${DOCKER_TAG}
 
     - name: make docker-push
       run: |
