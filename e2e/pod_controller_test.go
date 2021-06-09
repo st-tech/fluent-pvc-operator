@@ -18,17 +18,67 @@ import (
 	"github.com/st-tech/fluent-pvc-operator/constants"
 )
 
+func GenerateFluentPVCForTest(
+	testFluentPVCName string,
+	testSidecarContainerName string,
+	deletePodIfSidecarContainerTerminationDetected bool,
+	sidecarContainerCommand []string,
+) *fluentpvcv1alpha1.FluentPVC {
+	return &fluentpvcv1alpha1.FluentPVC{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: fluentpvcv1alpha1.GroupVersion.String(),
+			Kind:       "FluentPVC",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: testFluentPVCName,
+		},
+		Spec: fluentpvcv1alpha1.FluentPVCSpec{
+			PVCSpecTemplate: corev1.PersistentVolumeClaimSpec{
+				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+				Resources: corev1.ResourceRequirements{
+					Requests: map[corev1.ResourceName]resource.Quantity{
+						corev1.ResourceStorage: resource.MustParse("1Gi"),
+					},
+				},
+				StorageClassName: func(s string) *string { return &s }("standard"),
+			},
+			VolumeName:      "test-volume",
+			CommonMountPath: "/mnt/test",
+			CommonEnv:       []corev1.EnvVar{},
+			SidecarContainerTemplate: corev1.Container{
+				Name:    testSidecarContainerName,
+				Command: sidecarContainerCommand,
+				Image:   "alpine",
+			},
+			DeletePodIfSidecarContainerTerminationDetected: deletePodIfSidecarContainerTerminationDetected,
+			PVCFinalizerJobSpecTemplate: batchv1.JobSpec{
+				Template: corev1.PodTemplateSpec{
+					Spec: corev1.PodSpec{
+						RestartPolicy: corev1.RestartPolicyOnFailure,
+						Containers: []corev1.Container{
+							{
+								Name:    "test-finalizer-container",
+								Command: []string{"echo", "test"},
+								Image:   "alpine",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
 var _ = Describe("PVC controller", func() {
 	const (
-		testPodName                = "test-pod"
-		testContainerName          = "test-container"
-		testNamespace              = "default"
-		testFluentPVCName          = "test-fluent-pvc"
-		testSidecarContainerName   = "test-sidecar-container"
-		testVolumeName             = "test-volume"
-		testMountPath              = "/mnt/test"
-		testFinalizerContainerName = "test-finalizer-container"
-		testStorageClassName       = "standard"
+		testPodName                     = "test-pod"
+		testContainerName               = "test-container"
+		testNamespace                   = "default"
+		testFluentPVCNameDefault        = "test-fluent-pvc"
+		testFluentPVCNameDeletePodFalse = "test-fluent-pvc-delete-false"
+		testFluentPVCNameSidecarFailed  = "test-fluent-pvc-sidecar-failed"
+		testSidecarContainerName        = "test-sidecar-container"
+		testStorageClassName            = "standard"
 	)
 	var (
 		testPod = &corev1.Pod{
@@ -41,7 +91,6 @@ var _ = Describe("PVC controller", func() {
 				Namespace: testNamespace,
 			},
 			Spec: corev1.PodSpec{
-				// ShareProcessNamespace: pointer.BoolPtr(true),
 				Containers: []corev1.Container{
 					{
 						Name:  testContainerName,
@@ -51,53 +100,20 @@ var _ = Describe("PVC controller", func() {
 				},
 			},
 		}
-		testFluentPVC = &fluentpvcv1alpha1.FluentPVC{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: fluentpvcv1alpha1.GroupVersion.String(),
-				Kind:       "FluentPVC",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name: testFluentPVCName,
-			},
-			Spec: fluentpvcv1alpha1.FluentPVCSpec{
-				PVCSpecTemplate: corev1.PersistentVolumeClaimSpec{
-					AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-					Resources: corev1.ResourceRequirements{
-						Requests: map[corev1.ResourceName]resource.Quantity{
-							corev1.ResourceStorage: resource.MustParse("1Gi"),
-						},
-					},
-					StorageClassName: func(s string) *string { return &s }(testStorageClassName),
-				},
-				VolumeName:      testVolumeName,
-				CommonMountPath: testMountPath,
-				CommonEnv:       []corev1.EnvVar{},
-				SidecarContainerTemplate: corev1.Container{
-					Name:    testSidecarContainerName,
-					Command: []string{"sleep", "5"},
-					Image:   "alpine",
-				},
-				DeletePodIfSidecarContainerTerminationDetected: true,
-				PVCFinalizerJobSpecTemplate: batchv1.JobSpec{
-					Template: corev1.PodTemplateSpec{
-						Spec: corev1.PodSpec{
-							RestartPolicy: corev1.RestartPolicyOnFailure,
-							Containers: []corev1.Container{
-								{
-									Name:    testFinalizerContainerName,
-									Command: []string{"echo", "test"},
-									Image:   "alpine",
-								},
-							},
-						},
-					},
-				},
-			},
-		}
 	)
 	BeforeEach(func() {
-		err := k8sClient.Create(ctx, testFluentPVC.DeepCopy())
-		Expect(err).NotTo(HaveOccurred())
+		{
+			err := k8sClient.Create(ctx, GenerateFluentPVCForTest(testFluentPVCNameDefault, testSidecarContainerName, true, []string{"sh", "-c", "sleep 5"}))
+			Expect(err).NotTo(HaveOccurred())
+		}
+		{
+			err := k8sClient.Create(ctx, GenerateFluentPVCForTest(testFluentPVCNameDeletePodFalse, testSidecarContainerName, false, []string{"sh", "-c", "sleep 5; exit 1"}))
+			Expect(err).NotTo(HaveOccurred())
+		}
+		{
+			err := k8sClient.Create(ctx, GenerateFluentPVCForTest(testFluentPVCNameSidecarFailed, testSidecarContainerName, true, []string{"sh", "-c", "sleep 5; exit 1"}))
+			Expect(err).NotTo(HaveOccurred())
+		}
 	})
 	AfterEach(func() {
 		// Clean up the Pod if created.
@@ -112,40 +128,17 @@ var _ = Describe("PVC controller", func() {
 			}
 		}
 		// Clean up the FluentPVC.
-		err := k8sClient.Delete(ctx, testFluentPVC)
-		Expect(err).NotTo(HaveOccurred())
-	})
-	It("should pod ready when pod is fluent-pvc target", func() {
-		ctx := context.Background()
-		pod := testPod.DeepCopy()
-		pod.SetAnnotations(map[string]string{
-			constants.PodAnnotationFluentPVCName: testFluentPVCName,
-		})
 		{
-			err := k8sClient.Create(ctx, pod)
-			Expect(err).Should(Succeed())
+			err := k8sClient.Delete(ctx, GenerateFluentPVCForTest(testFluentPVCNameDefault, testSidecarContainerName, true, []string{"sh", "-c", "sleep 5"}))
+			Expect(err).NotTo(HaveOccurred())
 		}
 		{
-			mutPod := &corev1.Pod{}
-			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pod.Name}, mutPod)
-			Expect(err).Should(Succeed())
-
-			Eventually(func() error {
-				mutPod := &corev1.Pod{}
-				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pod.Name}, mutPod)
-				if err != nil {
-					return err
-				}
-				if mutPod.Status.Phase != corev1.PodRunning {
-					return errors.New("Pod is not running.")
-				}
-				for _, stat := range mutPod.Status.ContainerStatuses {
-					if !stat.Ready || stat.State.Running == nil {
-						return errors.New("Pod ContainerStatuses are not ready.")
-					}
-				}
-				return nil
-			}, 30).Should(Succeed())
+			err := k8sClient.Delete(ctx, GenerateFluentPVCForTest(testFluentPVCNameDeletePodFalse, testSidecarContainerName, false, []string{"sh", "-c", "sleep 5; exit 1"}))
+			Expect(err).NotTo(HaveOccurred())
+		}
+		{
+			err := k8sClient.Delete(ctx, GenerateFluentPVCForTest(testFluentPVCNameSidecarFailed, testSidecarContainerName, true, []string{"sh", "-c", "sleep 5; exit 1"}))
+			Expect(err).NotTo(HaveOccurred())
 		}
 	})
 	It("should pod ready when pod is not target", func() {
@@ -182,7 +175,7 @@ var _ = Describe("PVC controller", func() {
 		ctx := context.Background()
 		pod := testPod.DeepCopy()
 		pod.SetAnnotations(map[string]string{
-			constants.PodAnnotationFluentPVCName: testFluentPVCName,
+			constants.PodAnnotationFluentPVCName: testFluentPVCNameDefault,
 		})
 		{
 			err := k8sClient.Create(ctx, pod)
@@ -238,20 +231,9 @@ var _ = Describe("PVC controller", func() {
 	})
 	It("should pod ready when sidecar failed with code != 0 and DeletePodIfSidecarContainerTerminationDetected = false", func() {
 		ctx := context.Background()
-		mutFpvc := &fluentpvcv1alpha1.FluentPVC{}
-		{
-			err := k8sClient.Get(ctx, client.ObjectKey{Name: testFluentPVCName}, mutFpvc)
-			Expect(err).Should(Succeed())
-		}
-		mutFpvc.Spec.DeletePodIfSidecarContainerTerminationDetected = false
-		mutFpvc.Spec.SidecarContainerTemplate.Command = []string{"sleep", "5;", "exit", "1"}
-		{
-			err := k8sClient.Update(ctx, mutFpvc)
-			Expect(err).Should(Succeed())
-		}
 		pod := testPod.DeepCopy()
 		pod.SetAnnotations(map[string]string{
-			constants.PodAnnotationFluentPVCName: testFluentPVCName,
+			constants.PodAnnotationFluentPVCName: testFluentPVCNameDeletePodFalse,
 		})
 		{
 			err := k8sClient.Create(ctx, pod)
@@ -302,19 +284,9 @@ var _ = Describe("PVC controller", func() {
 	})
 	It("should pod with restartPolicy = OnFailure deleted when sidecar failed with code != 0", func() {
 		ctx := context.Background()
-		mutFpvc := &fluentpvcv1alpha1.FluentPVC{}
-		{
-			err := k8sClient.Get(ctx, client.ObjectKey{Name: testFluentPVCName}, mutFpvc)
-			Expect(err).Should(Succeed())
-		}
-		mutFpvc.Spec.SidecarContainerTemplate.Command = []string{"sh", "-c", "sleep 5; exit 1"}
-		{
-			err := k8sClient.Update(ctx, mutFpvc)
-			Expect(err).Should(Succeed())
-		}
 		pod := testPod.DeepCopy()
 		pod.SetAnnotations(map[string]string{
-			constants.PodAnnotationFluentPVCName: testFluentPVCName,
+			constants.PodAnnotationFluentPVCName: testFluentPVCNameSidecarFailed,
 		})
 		pod.Spec.RestartPolicy = corev1.RestartPolicyOnFailure
 		{
@@ -357,19 +329,9 @@ var _ = Describe("PVC controller", func() {
 	})
 	It("should pod with restartPolicy = Never deleted when sidecar failed with code != 0", func() {
 		ctx := context.Background()
-		mutFpvc := &fluentpvcv1alpha1.FluentPVC{}
-		{
-			err := k8sClient.Get(ctx, client.ObjectKey{Name: testFluentPVCName}, mutFpvc)
-			Expect(err).Should(Succeed())
-		}
-		mutFpvc.Spec.SidecarContainerTemplate.Command = []string{"sh", "-c", "sleep 5; exit 1"}
-		{
-			err := k8sClient.Update(ctx, mutFpvc)
-			Expect(err).Should(Succeed())
-		}
 		pod := testPod.DeepCopy()
 		pod.SetAnnotations(map[string]string{
-			constants.PodAnnotationFluentPVCName: testFluentPVCName,
+			constants.PodAnnotationFluentPVCName: testFluentPVCNameSidecarFailed,
 		})
 		pod.Spec.RestartPolicy = corev1.RestartPolicyNever
 		{
