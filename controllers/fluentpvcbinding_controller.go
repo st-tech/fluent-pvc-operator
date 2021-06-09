@@ -95,6 +95,7 @@ func (r *FluentPVCBindingReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			if err := r.Status().Update(ctx, b); err != nil {
 				return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
 			}
+			return ctrl.Result{}, nil
 		}
 	}
 
