@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - 'main'
+  pull_request:
+    branches:
+      - 'main'
+    types: [opened, synchronize]
 
 jobs:
   build:
@@ -29,10 +33,11 @@ jobs:
     # Setup tmate session to debug via SSH. See https://github.com/mxschmitt/action-tmate
     # - uses: mxschmitt/action-tmate@v1
 
-    - name: make e2e-test
+    - name: make clean-e2e-test
       run: |
         make clean-e2e-test IMG=${DOCKER_IMAGE_URI}:${DOCKER_TAG}
 
     - name: make docker-push
+      if: github.event_name == 'push'
       run: |
         make docker-push IMG=${DOCKER_IMAGE_URI}:${DOCKER_TAG}
