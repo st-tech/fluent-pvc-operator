@@ -98,6 +98,18 @@ func (r *FluentPVCBindingReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		}
 	}
 
+	if b.IsConditionFinalizerJobSucceeded() {
+		if pvcFound && controllerutil.ContainsFinalizer(pvc, constants.PVCFinalizerName) {
+			logger.Info(fmt.Sprintf("Skip processing because the finalizer of fluentpvcbinding='%s' is not removed.", b.Name))
+			return ctrl.Result{}, nil
+		}
+		logger.Info(fmt.Sprintf("Delete fluentpvcbinding='%s' because the finalizer jobs are succeeded", b.Name))
+		if err := r.Delete(ctx, b); client.IgnoreNotFound(err) != nil {
+			return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
+		}
+		return ctrl.Result{}, nil
+	}
+
 	switch {
 	case !podFound && !pvcFound:
 		if !b.IsConditionReady() {
@@ -113,34 +125,14 @@ func (r *FluentPVCBindingReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			}
 			return ctrl.Result{}, nil
 		}
-		if !b.IsConditionFinalizerJobSucceeded() {
-			message := fmt.Sprintf("Both pod='%s' and pvc='%s' are not found even though it hasn't been finalized since it became Ready status.", podName, pvcName)
-			logger.Error(xerrors.New(message), message)
-			b.SetConditionUnknown("PodAndPVCNotFound", message)
-			if err := r.Status().Update(ctx, b); err != nil {
-				return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
-			}
-			return ctrl.Result{}, nil
-		}
-
-		logger.Info(fmt.Sprintf(
-			"Delete fluentpvcbinding='%s' because it is already finalized and both pod='%s' and pvc='%s' are already deleted.", b.Name, podName, pvcName,
-		))
-		if err := r.Delete(ctx, b); client.IgnoreNotFound(err) != nil {
+		message := fmt.Sprintf("Both pod='%s' and pvc='%s' are not found even though it hasn't been finalized since it became Ready status.", podName, pvcName)
+		logger.Error(xerrors.New(message), message)
+		b.SetConditionUnknown("PodAndPVCNotFound", message)
+		if err := r.Status().Update(ctx, b); err != nil {
 			return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
 		}
+		return ctrl.Result{}, nil
 	case !podFound && pvcFound:
-		if b.IsConditionFinalizerJobSucceeded() {
-			if controllerutil.ContainsFinalizer(pvc, constants.PVCFinalizerName) {
-				logger.Info(fmt.Sprintf("Skip processing because the finalizer of fluentpvcbinding='%s' is not removed.", b.Name))
-				return ctrl.Result{}, nil
-			}
-			logger.Info(fmt.Sprintf("Delete fluentpvcbinding='%s' because the finalizer jobs are succeeded", b.Name))
-			if err := r.Delete(ctx, b); client.IgnoreNotFound(err) != nil {
-				return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
-			}
-			return ctrl.Result{}, nil
-		}
 		if !b.IsConditionReady() {
 			if isCreatedBefore(b, 1*time.Hour) { // TODO: make it configurable?
 				message := fmt.Sprintf("Pod='%s' is not found even though it hasn't been finalized since it became Ready status.", podName)
@@ -177,10 +169,6 @@ func (r *FluentPVCBindingReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			needUpdate := false
 			if b.IsConditionFinalizerJobApplied() {
 				b.SetConditionNotFinalizerJobApplied(reason, message)
-				needUpdate = true
-			}
-			if b.IsConditionFinalizerJobSucceeded() {
-				b.SetConditionNotFinalizerJobSucceeded(reason, message)
 				needUpdate = true
 			}
 			if b.IsConditionFinalizerJobFailed() {
@@ -245,19 +233,13 @@ func (r *FluentPVCBindingReconciler) Reconcile(ctx context.Context, req ctrl.Req
 				return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
 			}
 		case corev1.PodSucceeded, corev1.PodFailed:
-			if !b.IsConditionFinalizerJobSucceeded() {
-				message := fmt.Sprintf("Pod='%s' is finished and pvc='%s' is not found, but fluentpvcbinding='%s' is not finalized.", podName, pvcName, b.Name)
-				logger.Error(xerrors.New(message), message)
-				b.SetConditionUnknown("PodFoundAndFinishedAndPVCNotFoundButFluentPVCBindingNotFinalized", message)
-				if err := r.Status().Update(ctx, b); err != nil {
-					return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
-				}
-				return ctrl.Result{}, nil
-			}
-			logger.Info(fmt.Sprintf("Delete fluentpvcbinding='%s' because the finalizer job is succeeded.", b.Name))
-			if err := r.Delete(ctx, b); client.IgnoreNotFound(err) != nil {
+			message := fmt.Sprintf("Pod='%s' is finished and pvc='%s' is not found, but fluentpvcbinding='%s' is not finalized.", podName, pvcName, b.Name)
+			logger.Error(xerrors.New(message), message)
+			b.SetConditionUnknown("PodFoundAndFinishedAndPVCNotFoundButFluentPVCBindingNotFinalized", message)
+			if err := r.Status().Update(ctx, b); err != nil {
 				return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
 			}
+			return ctrl.Result{}, nil
 		case corev1.PodUnknown:
 			logger.Info("Skip processing because pod='%s' is unknown status and pvc='%s' is not found", podName, pvcName)
 		}
