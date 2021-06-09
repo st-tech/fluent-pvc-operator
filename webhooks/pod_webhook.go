@@ -85,6 +85,7 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 		b.Spec.FluentPVCName = fpvc.Name
 		b.Spec.PodName = pod.Name
 		b.Spec.PVCName = name
+		controllerutil.AddFinalizer(b, constants.FluentPVCBindingFinalizerName)
 		return ctrl.SetControllerReference(fpvc, b, m.Scheme())
 	}); err != nil {
 		logger.Error(err, fmt.Sprintf("Cannot CreateOrUpdate FluentPVCBinding='%s'.", name))
