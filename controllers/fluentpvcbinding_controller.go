@@ -117,42 +117,31 @@ func (r *FluentPVCBindingReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return ctrl.Result{}, nil
 	}
 
+	if !podFound && !b.IsConditionReady() {
+		if isCreatedBefore(b, 1*time.Hour) { // TODO: make it configurable?
+			message := fmt.Sprintf(
+				"Pod='%s' is not found even though it hasn't been finalized since it became Ready status.", podName,
+			)
+			logger.Error(xerrors.New(message), message)
+			b.SetConditionUnknown("PodNotFound", message)
+			if err := r.Status().Update(ctx, b); err != nil {
+				return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
+			}
+		} else {
+			logger.Info(fmt.Sprintf("Skip processing until the next reconciliation because pod='%s' is not found.", podName))
+		}
+		return ctrl.Result{}, nil
+	}
+
 	switch {
 	case !podFound && !pvcFound:
-		if !b.IsConditionReady() {
-			if isCreatedBefore(b, 1*time.Hour) { // TODO: make it configurable?
-				message := fmt.Sprintf("Both pod='%s' and pvc='%s' are not found even though it hasn't been finalized since it became Ready status.", podName, pvcName)
-				logger.Error(xerrors.New(message), message)
-				b.SetConditionUnknown("PodAndPVCNotFound", message)
-				if err := r.Status().Update(ctx, b); err != nil {
-					return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
-				}
-			} else {
-				logger.Info(fmt.Sprintf("Skip processing until the next reconciliation because pod='%s' and pvc='%s' are not found.", podName, pvcName))
-			}
-			return ctrl.Result{}, nil
-		}
 		message := fmt.Sprintf("Both pod='%s' and pvc='%s' are not found even though it hasn't been finalized since it became Ready status.", podName, pvcName)
 		logger.Error(xerrors.New(message), message)
 		b.SetConditionUnknown("PodAndPVCNotFound", message)
 		if err := r.Status().Update(ctx, b); err != nil {
 			return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
 		}
-		return ctrl.Result{}, nil
 	case !podFound && pvcFound:
-		if !b.IsConditionReady() {
-			if isCreatedBefore(b, 1*time.Hour) { // TODO: make it configurable?
-				message := fmt.Sprintf("Pod='%s' is not found even though it hasn't been finalized since it became Ready status.", podName)
-				logger.Error(xerrors.New(message), message)
-				b.SetConditionUnknown("PodNotFound", message)
-				if err := r.Status().Update(ctx, b); err != nil {
-					return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
-				}
-			} else {
-				logger.Info(fmt.Sprintf("Skip processing until the next reconciliation because pod='%s' is not found.", podName))
-			}
-			return ctrl.Result{}, nil
-		}
 		if !b.IsConditionOutOfUse() {
 			// fluentpvc is ready, not out of use.
 			message := fmt.Sprintf("Update the status of fluentpvcbinding='%s' 'OutOfUse' because it is ready status but pod='%s' is not found.", b.Name, podName)
@@ -246,7 +235,6 @@ func (r *FluentPVCBindingReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			if err := r.Status().Update(ctx, b); err != nil {
 				return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
 			}
-			return ctrl.Result{}, nil
 		case corev1.PodUnknown:
 			logger.Info("Skip processing because pod='%s' is unknown status and pvc='%s' is not found", podName, pvcName)
 		}
