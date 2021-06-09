@@ -103,6 +103,13 @@ func (r *FluentPVCBindingReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			logger.Info(fmt.Sprintf("Skip processing because the finalizer of fluentpvcbinding='%s' is not removed.", b.Name))
 			return ctrl.Result{}, nil
 		}
+		if controllerutil.ContainsFinalizer(b, constants.FluentPVCBindingFinalizerName) {
+			logger.Info(fmt.Sprintf("Remove the finalizer of fluentpvcbinding='%s' because the condition is 'FinalizerJobSucceeded'.", b.Name))
+			controllerutil.RemoveFinalizer(b, constants.FluentPVCBindingFinalizerName)
+			if err := r.Update(ctx, b); client.IgnoreNotFound(err) != nil {
+				return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
+			}
+		}
 		logger.Info(fmt.Sprintf("Delete fluentpvcbinding='%s' because the finalizer jobs are succeeded", b.Name))
 		if err := r.Delete(ctx, b); client.IgnoreNotFound(err) != nil {
 			return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
