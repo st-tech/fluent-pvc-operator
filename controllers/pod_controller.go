@@ -74,14 +74,19 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	if status == nil {
 		return ctrl.Result{}, xerrors.New(fmt.Sprintf("Container='%s' does not have any status.", containerName))
 	}
-	if status.RestartCount == 0 {
+	if status.RestartCount == 0 && status.State.Terminated == nil {
 		logger.Info(fmt.Sprintf(
-			"Container='%s' in the pod='%s' has never been restarted.",
+			"Container='%s' in the pod='%s' has never been terminated.",
 			containerName, pod.Name,
 		))
 		return ctrl.Result{}, nil
-	}
-	if status.LastTerminationState.Terminated.ExitCode == 0 {
+	} else if status.RestartCount == 0 && status.State.Terminated.ExitCode == 0 {
+		logger.Info(fmt.Sprintf(
+			"Container='%s' in the pod='%s' exited and the exitcode is 0.",
+			containerName, pod.Name,
+		))
+		return ctrl.Result{}, nil
+	} else if status.RestartCount != 0 && status.LastTerminationState.Terminated.ExitCode == 0 {
 		logger.Info(fmt.Sprintf(
 			"Container='%s' in the pod='%s' exited and the exitcode is 0.",
 			containerName, pod.Name,
@@ -89,10 +94,17 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		return ctrl.Result{}, nil
 	}
 
-	logger.Info(fmt.Sprintf(
-		"Delete the pod='%s' in the background because the container='%s' exited and the exitcode is %d.",
-		pod.Name, containerName, status.LastTerminationState.Terminated.ExitCode,
-	))
+	if status.RestartCount == 0 {
+		logger.Info(fmt.Sprintf(
+			"Delete the pod='%s' in the background because the container='%s' exited and the exitcode is %d.",
+			pod.Name, containerName, status.State.Terminated.ExitCode,
+		))
+	} else if status.RestartCount > 0 {
+		logger.Info(fmt.Sprintf(
+			"Delete the pod='%s' in the background because the container='%s' restarted and the exitcode is %d.",
+			pod.Name, containerName, status.LastTerminationState.Terminated.ExitCode,
+		))
+	}
 	// TODO: Respects PodDisruptionBudget.
 	gracePeriodSeconds := int64(60 * 5) // 5 minutes
 	if pod.DeletionGracePeriodSeconds != nil {

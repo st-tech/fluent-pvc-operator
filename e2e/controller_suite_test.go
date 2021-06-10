@@ -1,4 +1,4 @@
-package controllers
+package e2e
 
 import (
 	"context"
