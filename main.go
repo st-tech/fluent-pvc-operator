@@ -1,8 +1,13 @@
 package main
 
 import (
+	"crypto/tls"
 	"flag"
+	"net"
+	"net/http"
 	"os"
+	"strconv"
+	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -105,7 +110,18 @@ func main() {
 		setupLog.Error(err, "unable to set up health check")
 		os.Exit(1)
 	}
-	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+	if err := mgr.AddReadyzCheck("readyz", func(_ *http.Request) (e error) {
+		dialer := &net.Dialer{Timeout: time.Second}
+		addrPort := strconv.Itoa(mgr.GetWebhookServer().Port)
+		conn, err := tls.DialWithDialer(dialer, "tcp", addrPort, &tls.Config{InsecureSkipVerify: true})
+		defer func() {
+			e = conn.Close()
+		}()
+		if err != nil {
+			e = err
+		}
+		return
+	}); err != nil {
 		setupLog.Error(err, "unable to set up ready check")
 		os.Exit(1)
 	}

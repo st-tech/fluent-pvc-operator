@@ -179,7 +179,6 @@ endif
 .PHONY: wait-fluent-pvc-operator
 wait-fluent-pvc-operator:
 	$(BINDIR)/kubectl wait -n $(FLUENT_PVC_NAMESPACE) --for=condition=Available deployments --all --timeout=60s
-	sleep 10
 
 .PHONY: setup-e2e-test
 setup-e2e-test: launch-kind apply-cert-manager load-image-kind deploy wait-fluent-pvc-operator
