@@ -3,10 +3,10 @@ package main
 import (
 	"crypto/tls"
 	"flag"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
-	"strconv"
 	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -110,17 +110,17 @@ func main() {
 		setupLog.Error(err, "unable to set up health check")
 		os.Exit(1)
 	}
-	if err := mgr.AddReadyzCheck("readyz", func(_ *http.Request) (e error) {
+	if err := mgr.AddReadyzCheck("readyz", func(_ *http.Request) error {
 		dialer := &net.Dialer{Timeout: time.Second}
-		addrPort := strconv.Itoa(mgr.GetWebhookServer().Port)
+		addrPort := fmt.Sprintf("%s:%d", mgr.GetWebhookServer().Host, mgr.GetWebhookServer().Port)
+		setupLog.Info(addrPort)
 		conn, err := tls.DialWithDialer(dialer, "tcp", addrPort, &tls.Config{InsecureSkipVerify: true})
-		defer func() {
-			e = conn.Close()
-		}()
 		if err != nil {
-			e = err
+			setupLog.Error(err, "DialWithDialer failed.")
+			return err
 		}
-		return
+		conn.Close()
+		return nil
 	}); err != nil {
 		setupLog.Error(err, "unable to set up ready check")
 		os.Exit(1)

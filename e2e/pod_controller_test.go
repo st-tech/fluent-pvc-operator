@@ -422,6 +422,7 @@ var _ = Describe("pod_controller", func() {
 		})
 	})
 	Context("An applied pod is a target & the FluentPVC is deleted after the pod is applied", func() {
+		// TODO: Fix test after merging https://github.com/st-tech/fluent-pvc-operator/pull/17
 		It("should process correctly", func() {
 			ctx := context.Background()
 			pod := generateTestPodManifest(testPodConfig{
