@@ -9,7 +9,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -110,13 +109,6 @@ func (r *podReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	}
 	// TODO: Respects PodDisruptionBudget.
 	deleteOptions := deleteOptionsBackground(&pod.UID, &pod.ResourceVersion)
-	deleteOptions.GracePeriodSeconds = pointer.Int64Ptr(60 * 5) // 5 minutes
-	if pod.DeletionGracePeriodSeconds != nil {
-		// TODO: Need to expand the period?
-		if *pod.DeletionGracePeriodSeconds > *deleteOptions.GracePeriodSeconds {
-			deleteOptions.GracePeriodSeconds= pod.DeletionGracePeriodSeconds
-		}
-	}
 	if err := r.Delete(ctx, pod, deleteOptions); client.IgnoreNotFound(err) != nil {
 		return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
 	}
