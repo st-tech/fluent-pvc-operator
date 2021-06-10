@@ -85,6 +85,7 @@ func generateFluentPVCForTest(
 type testPodConfig struct {
 	AddFluentPVCAnnotation bool
 	FluentPVCName          string
+	ContainerArgs          []string
 	RestartPolicy          corev1.RestartPolicy
 }
 
@@ -112,6 +113,9 @@ func generateTestPodManifest(testPodConfig testPodConfig) *corev1.Pod {
 		pod.SetAnnotations(map[string]string{
 			constants.PodAnnotationFluentPVCName: testPodConfig.FluentPVCName,
 		})
+	}
+	if testPodConfig.ContainerArgs != nil {
+		pod.Spec.Containers[0].Args = testPodConfig.ContainerArgs
 	}
 	if testPodConfig.RestartPolicy != "" {
 		pod.Spec.RestartPolicy = testPodConfig.RestartPolicy
