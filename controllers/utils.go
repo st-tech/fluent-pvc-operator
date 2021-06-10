@@ -75,12 +75,6 @@ func getFinishedStatus(j *batchv1.Job) (bool, batchv1.JobConditionType) {
 	return false, ""
 }
 
-// isJobFinished returns whether or not a job has completed successfully or failed.
-func isJobFinished(j *batchv1.Job) bool {
-	isFinished, _ := getFinishedStatus(j)
-	return isFinished
-}
-
 func isJobSucceeded(j *batchv1.Job) bool {
 	isFinished, t := getFinishedStatus(j)
 	return isFinished && t == batchv1.JobComplete
@@ -91,41 +85,8 @@ func isJobFailed(j *batchv1.Job) bool {
 	return isFinished && t == batchv1.JobFailed
 }
 
-// https://github.com/kubernetes/kubernetes/blob/c495744436fc94ebbef2fcbeb97699ca96fe02dd/pkg/api/pod/util.go#L242-L272
-// isPodReadyCondition returns true if a pod is ready; false otherwise.
-func isPodReadyCondition(pod *corev1.Pod) bool {
-	return isPodReadyConditionTrue(pod.Status)
-}
-
-// isPodReadyConditionTrue returns true if a pod is ready; false otherwise.
-func isPodReadyConditionTrue(status corev1.PodStatus) bool {
-	condition := getPodReadyCondition(status)
-	return condition != nil && condition.Status == corev1.ConditionTrue
-}
-
-// getPodReadyCondition extracts the pod ready condition from the given status and returns that.
-// Returns nil if the condition is not present.
-func getPodReadyCondition(status corev1.PodStatus) *corev1.PodCondition {
-	_, condition := getPodCondition(&status, corev1.PodReady)
-	return condition
-}
-
 func isPodRunningPhase(pod *corev1.Pod) bool {
 	return pod.Status.Phase == corev1.PodRunning
-}
-
-// getPodCondition extracts the provided condition from the given status and returns that.
-// Returns nil and -1 if the condition is not present, and the index of the located condition.
-func getPodCondition(status *corev1.PodStatus, conditionType corev1.PodConditionType) (int, *corev1.PodCondition) {
-	if status == nil {
-		return -1, nil
-	}
-	for i := range status.Conditions {
-		if status.Conditions[i].Type == conditionType {
-			return i, &status.Conditions[i]
-		}
-	}
-	return -1, nil
 }
 
 func findContainerStatusByName(status *corev1.PodStatus, name string) *corev1.ContainerStatus {
