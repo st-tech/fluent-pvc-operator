@@ -7,7 +7,6 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/go-logr/logr"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -17,7 +16,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	fluentpvcv1alpha1 "github.com/st-tech/fluent-pvc-operator/api/v1alpha1"
@@ -31,15 +29,20 @@ import (
 //+kubebuilder:rbac:groups="batch",resources=jobs,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;update
 
-type PVCReconciler struct {
+type pvcReconciler struct {
 	client.Client
-	APIReader client.Reader
-	Log       logr.Logger
-	Scheme    *runtime.Scheme
+	Scheme *runtime.Scheme
 }
 
-func (r *PVCReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger := log.FromContext(ctx).WithName("controllers").WithName("pvc_controller")
+func NewPVCReconciler(mgr ctrl.Manager) *pvcReconciler {
+	return &pvcReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}
+}
+
+func (r *pvcReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	logger := ctrl.LoggerFrom(ctx).WithName("pvcReconciler").WithName("Reconcile")
 
 	pvc := &corev1.PersistentVolumeClaim{}
 	if err := r.Get(ctx, req.NamespacedName, pvc); err != nil {
@@ -141,7 +144,7 @@ func (r *PVCReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	return ctrl.Result{}, nil
 }
 
-func (r *PVCReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *pvcReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	pred := predicate.Funcs{
 		CreateFunc:  func(event.CreateEvent) bool { return true },
 		DeleteFunc:  func(event.DeleteEvent) bool { return false },

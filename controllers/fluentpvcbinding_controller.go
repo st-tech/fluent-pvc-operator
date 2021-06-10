@@ -7,7 +7,6 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/go-logr/logr"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -17,7 +16,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
@@ -33,16 +31,20 @@ import (
 //+kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
 //+kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch
 
-type FluentPVCBindingReconciler struct {
+type fluentPVCBindingReconciler struct {
 	client.Client
-	APIReader client.Reader
-	Log       logr.Logger
-	Scheme    *runtime.Scheme
+	Scheme *runtime.Scheme
 }
 
-func (r *FluentPVCBindingReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger := log.FromContext(ctx).WithName("controllers").WithName("fluentpvcbinding_controller")
+func NewFluentPVCBindingReconciler(mgr ctrl.Manager) *fluentPVCBindingReconciler {
+	return &fluentPVCBindingReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}
+}
 
+func (r *fluentPVCBindingReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	logger := ctrl.LoggerFrom(ctx).WithName("fluentPVCBindingReconciler").WithName("Reconcile")
 	b := &fluentpvcv1alpha1.FluentPVCBinding{}
 	if err := r.Get(ctx, req.NamespacedName, b); err != nil {
 		if apierrors.IsNotFound(err) {
@@ -268,7 +270,7 @@ func (r *FluentPVCBindingReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	return ctrl.Result{}, nil
 }
 
-func (r *FluentPVCBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *fluentPVCBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	ctx := context.Background()
 	if err := mgr.GetFieldIndexer().IndexField(
 		ctx,
@@ -278,14 +280,9 @@ func (r *FluentPVCBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	); err != nil {
 		return xerrors.Errorf("Unexpected error occurred.: %w", err)
 	}
-	logger := log.FromContext(ctx).
-		WithName("controllers").
-		WithName("fluentpvcbinding_controller").
-		WithName("fluentPVCBindingWatcher")
 	ch := make(chan event.GenericEvent)
 	watcher := &fluentPVCBindingWatcher{
 		client:    mgr.GetClient(),
-		logger:    logger,
 		ch:        ch,
 		listLimit: 300,             // TODO: make it configurable.
 		tick:      5 * time.Second, // TODO: make it configurable.
@@ -311,7 +308,6 @@ func (r *FluentPVCBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 type fluentPVCBindingWatcher struct {
 	client    client.Client
-	logger    logr.Logger
 	ch        chan<- event.GenericEvent
 	listLimit int64
 	tick      time.Duration

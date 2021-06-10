@@ -10,7 +10,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
@@ -49,7 +48,7 @@ func NewPodMutator(c client.Client) admission.Handler {
 }
 
 func (m *podMutator) Handle(ctx context.Context, req admission.Request) admission.Response {
-	logger := log.FromContext(ctx).WithName("webhooks").WithName("pod-mutation-webhook")
+	logger := ctrl.LoggerFrom(ctx).WithName("podMutator").WithName("Handle")
 	pod := &corev1.Pod{}
 	if err := m.decoder.Decode(req, pod); err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
