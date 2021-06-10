@@ -97,7 +97,6 @@ func main() {
 	if err := mgr.AddReadyzCheck("readyz", func(_ *http.Request) error {
 		dialer := &net.Dialer{Timeout: time.Second}
 		addrPort := fmt.Sprintf("%s:%d", mgr.GetWebhookServer().Host, mgr.GetWebhookServer().Port)
-		setupLog.Info(addrPort)
 		conn, err := tls.DialWithDialer(dialer, "tcp", addrPort, &tls.Config{InsecureSkipVerify: true})
 		if err != nil {
 			setupLog.Error(err, "DialWithDialer failed.")
