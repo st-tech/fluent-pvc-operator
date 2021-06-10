@@ -110,7 +110,7 @@ func getPodReadyCondition(status corev1.PodStatus) *corev1.PodCondition {
 	return condition
 }
 
-func isPodReadyPhase(pod *corev1.Pod) bool {
+func isPodRunningPhase(pod *corev1.Pod) bool {
 	return pod.Status.Phase == corev1.PodRunning
 }
 

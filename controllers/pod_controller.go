@@ -53,8 +53,8 @@ func (r *podReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		fluentPVCName = v
 	}
 
-	if !isPodReadyPhase(pod) {
-		logger.Info(fmt.Sprintf("Skip processing because pod='%s' is '%s' status.", pod.Name, pod.Status.Phase))
+	if !isPodRunningPhase(pod) {
+		logger.Info(fmt.Sprintf("Skip processing because pod='%s' is '%s' phase.", pod.Name, pod.Status.Phase))
 		return ctrl.Result{}, nil
 	}
 
