@@ -34,19 +34,49 @@ spec:
             type: object
           spec:
             properties:
-              fluentPVCName:
+              fluentPVC:
                 description: FluentPVC Name to bind.
-                type: string
-              podName:
+                properties:
+                  name:
+                    description: Object Name
+                    type: string
+                  uid:
+                    description: Object UID
+                    type: string
+                required:
+                - name
+                - uid
+                type: object
+              pod:
                 description: Pod Name to bind.
-                type: string
-              pvcName:
+                properties:
+                  name:
+                    description: Object Name
+                    type: string
+                  uid:
+                    description: Object UID
+                    type: string
+                required:
+                - name
+                - uid
+                type: object
+              pvc:
                 description: PVC Name to bind.
-                type: string
+                properties:
+                  name:
+                    description: Object Name
+                    type: string
+                  uid:
+                    description: Object UID
+                    type: string
+                required:
+                - name
+                - uid
+                type: object
             required:
-            - fluentPVCName
-            - podName
-            - pvcName
+            - fluentPVC
+            - pod
+            - pvc
             type: object
           status:
             description: FluentPVCStatus defines the observed state of FluentPVC

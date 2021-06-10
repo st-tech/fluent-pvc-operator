@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -92,4 +93,34 @@ func (b *FluentPVCBinding) setCondition(t FluentPVCBindingConditionType, status 
 		Reason:  reason,
 		Message: message,
 	})
+}
+
+func (b *FluentPVCBinding) SetFluentPVC(fpvc *FluentPVC) {
+	b.Spec.FluentPVC = b.toObjectIdentity(&fpvc.ObjectMeta)
+}
+func (b *FluentPVCBinding) SetPVC(pvc *corev1.PersistentVolumeClaim) {
+	b.Spec.PVC = b.toObjectIdentity(&pvc.ObjectMeta)
+}
+
+func (b *FluentPVCBinding) SetPod(pod *corev1.Pod) {
+	b.Spec.Pod = b.toObjectIdentity(&pod.ObjectMeta)
+}
+
+func (b *FluentPVCBinding) toObjectIdentity(o *metav1.ObjectMeta) ObjectIdentity {
+	return ObjectIdentity{
+		Name: o.Name,
+		UID:  o.UID,
+	}
+}
+
+func (b *FluentPVCBinding) IsControlledBy(fpvc *FluentPVC) bool {
+	return metav1.IsControlledBy(b, fpvc)
+}
+
+func (b *FluentPVCBinding) IsBindingPod(pod *corev1.Pod) bool {
+	return pod.UID == b.Spec.Pod.UID
+}
+
+func (b *FluentPVCBinding) IsBindingPVC(pvc *corev1.PersistentVolumeClaim) bool {
+	return pvc.UID == b.Spec.PVC.UID
 }

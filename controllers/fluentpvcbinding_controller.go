@@ -54,11 +54,19 @@ func (r *fluentPVCBindingReconciler) Reconcile(ctx context.Context, req ctrl.Req
 	}
 
 	fpvc := &fluentpvcv1alpha1.FluentPVC{}
-	if err := r.Get(ctx, client.ObjectKey{Name: b.Spec.FluentPVCName}, fpvc); err != nil {
+	if err := r.Get(ctx, client.ObjectKey{Name: b.Spec.FluentPVC.Name}, fpvc); err != nil {
 		return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
 	}
-	if err := updateOrNothingControllerReference(ctx, r.Client, fpvc, b); err != nil {
-		return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
+	if !b.IsControlledBy(fpvc) {
+		if err := ctrl.SetControllerReference(fpvc, b, r.Scheme); err != nil {
+			return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred: %w", err)
+		}
+		b.SetFluentPVC(fpvc)
+		if err := r.Update(ctx, b); err != nil {
+			return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
+		}
+		// NOTE: Wait until next #Reconcile to avoid update confliction.
+		return ctrl.Result{}, nil
 	}
 
 	if b.IsConditionUnknown() {
@@ -66,7 +74,7 @@ func (r *fluentPVCBindingReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return ctrl.Result{}, nil
 	}
 
-	podName := b.Spec.PodName
+	podName := b.Spec.Pod.Name
 	pod := &corev1.Pod{}
 	podFound := true
 	if err := r.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: podName}, pod); err != nil {
@@ -76,7 +84,39 @@ func (r *fluentPVCBindingReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
 		}
 	}
-	pvcName := b.Spec.PVCName
+	if podFound && b.Spec.Pod.UID == "" {
+		// NOTE: When the pod_webhook is invoked, the pod does not have a UID, so it is an empty string.
+		//       Therefore, the first pod that is found with an empty UID is considered to be the target.
+		podHasPVC := false
+		for _, v := range pod.Spec.Volumes {
+			if v.PersistentVolumeClaim != nil && v.Name == b.Spec.PVC.Name {
+				podHasPVC = true
+			}
+		}
+		podHasFluentPVCAnnotation := false
+		if v, ok := pod.Annotations[constants.PodAnnotationFluentPVCName]; ok {
+			podHasFluentPVCAnnotation = v == b.Spec.FluentPVC.Name
+		}
+		if podHasPVC && podHasFluentPVCAnnotation {
+			b.SetPod(pod)
+			if err := r.Update(ctx, b); err != nil {
+				return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
+			}
+			// NOTE: Wait until next #Reconcile to avoid update confliction.
+			return ctrl.Result{}, nil
+		}
+		logger.Info(fmt.Sprintf(
+			"Found a pod='%s' with the name defined by fluentpvcbinding='%s',"+
+				" but there is an inconsistency in the definition of pvc and fluentpvc,"+
+				" so this pod is not a pod that fluentpvcbinding binds.",
+			pod.Name, b.Name,
+		))
+	}
+	if !b.IsBindingPod(pod) {
+		logger.Info(fmt.Sprintf("pod.UID='%s' is different from the binding pod.UID='%s' for name='%s'.", pod.UID, b.Spec.Pod.UID, b.Name))
+		podFound = false
+	}
+	pvcName := b.Spec.PVC.Name
 	pvc := &corev1.PersistentVolumeClaim{}
 	pvcFound := true
 	if err := r.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: pvcName}, pvc); err != nil {
@@ -85,6 +125,10 @@ func (r *fluentPVCBindingReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		} else {
 			return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
 		}
+	}
+	if !b.IsBindingPVC(pvc) {
+		logger.Info(fmt.Sprintf("pvc.UID='%s' is different from the binding pvc.UID='%s' for name='%s'.", pvc.UID, b.Spec.PVC.UID, b.Name))
+		pvcFound = false
 	}
 	if pvcFound {
 		if pvc.Status.Phase == corev1.ClaimLost {

@@ -58,6 +58,13 @@ func (r *pvcReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		}
 		return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
 	}
+	if pvc.UID != b.Spec.PVC.UID {
+		logger.Info(fmt.Sprintf(
+			"Skip processing because pvc.UID='%s' is different from fluentpvcbinding.Spec.PVC.UID='%s' for name='%s'.",
+			pvc.UID, b.Spec.PVC.UID, pvc.Name,
+		))
+		return ctrl.Result{}, nil
+	}
 	if b.IsConditionUnknown() {
 		logger.Info(fmt.Sprintf("fluentpvcbinding='%s' is unknown status, so skip processing.", b.Name))
 		return ctrl.Result{}, nil
