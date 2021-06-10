@@ -12,7 +12,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	fluentpvcv1alpha1 "github.com/st-tech/fluent-pvc-operator/api/v1alpha1"
+	"github.com/st-tech/fluent-pvc-operator/constants"
 )
+
+func matchingOwnerControllerField(ownerName string) client.MatchingFields {
+	return client.MatchingFields(map[string]string{constants.OwnerControllerField: ownerName})
+}
 
 func indexPVCByOwnerFluentPVCBinding(obj client.Object) []string {
 	pvc := obj.(*corev1.PersistentVolumeClaim)
