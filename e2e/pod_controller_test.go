@@ -69,37 +69,41 @@ func generateFluentPVCForTest(
 	}
 }
 
+func generateTestPodManifest(fluentPVCAnnotation string) *corev1.Pod {
+	pod := &corev1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       "Pod",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod",
+			Namespace: "default",
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name:  "test-container",
+					Args:  []string{"sleep", "1000"},
+					Image: "krallin/ubuntu-tini:trusty",
+				},
+			},
+		},
+	}
+	if fluentPVCAnnotation != "" {
+		pod.SetAnnotations(map[string]string{
+			constants.PodAnnotationFluentPVCName: fluentPVCAnnotation,
+		})
+	}
+	return pod
+}
+
 var _ = Describe("pod_controller", func() {
 	const (
-		testPodName                     = "test-pod"
-		testContainerName               = "test-container"
-		testNamespace                   = "default"
 		testFluentPVCNameDefault        = "test-fluent-pvc"
 		testFluentPVCNameDeletePodFalse = "test-fluent-pvc-delete-false"
 		testFluentPVCNameSidecarFailed  = "test-fluent-pvc-sidecar-failed"
 		testSidecarContainerName        = "test-sidecar-container"
 		testStorageClassName            = "standard"
-	)
-	var (
-		testPod = &corev1.Pod{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: corev1.SchemeGroupVersion.String(),
-				Kind:       "Pod",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      testPodName,
-				Namespace: testNamespace,
-			},
-			Spec: corev1.PodSpec{
-				Containers: []corev1.Container{
-					{
-						Name:  testContainerName,
-						Args:  []string{"sleep", "1000"},
-						Image: "krallin/ubuntu-tini:trusty",
-					},
-				},
-			},
-		}
 	)
 	BeforeEach(func() {
 		{
@@ -118,8 +122,8 @@ var _ = Describe("pod_controller", func() {
 	AfterEach(func() {
 		// Clean up the Pod if created.
 		pod := &corev1.Pod{}
-		pod.SetNamespace(testNamespace)
-		pod.SetName(testPodName)
+		pod.SetNamespace("default")
+		pod.SetName("test-pod")
 		if err := k8sClient.Delete(ctx, pod, &client.DeleteOptions{
 			GracePeriodSeconds: pointer.Int64Ptr(0),
 		}); err != nil {
@@ -144,7 +148,7 @@ var _ = Describe("pod_controller", func() {
 	Context("An applied pod is not a target", func() {
 		It("should not do anything, that means the pod continues to be running", func() {
 			ctx := context.Background()
-			pod := testPod.DeepCopy()
+			pod := generateTestPodManifest("")
 			{
 				err := k8sClient.Create(ctx, pod)
 				Expect(err).Should(Succeed())
@@ -176,10 +180,7 @@ var _ = Describe("pod_controller", func() {
 	Context("An applied pod is a target & the sidecar container exits with code 0 and is not restarted", func() {
 		It("should not do anything, that means the pod continues to be running", func() {
 			ctx := context.Background()
-			pod := testPod.DeepCopy()
-			pod.SetAnnotations(map[string]string{
-				constants.PodAnnotationFluentPVCName: testFluentPVCNameDefault,
-			})
+			pod := generateTestPodManifest(testFluentPVCNameDefault)
 			{
 				err := k8sClient.Create(ctx, pod)
 				Expect(err).Should(Succeed())
@@ -236,10 +237,7 @@ var _ = Describe("pod_controller", func() {
 	Context("An applied pod is a target & the sidecar container exits with code != 0", func() {
 		It("should not do anything if FluentPVC.DeletePodIfSidecarContainerTerminationDetected = false, that means the pod continues to be running", func() {
 			ctx := context.Background()
-			pod := testPod.DeepCopy()
-			pod.SetAnnotations(map[string]string{
-				constants.PodAnnotationFluentPVCName: testFluentPVCNameDeletePodFalse,
-			})
+			pod := generateTestPodManifest(testFluentPVCNameDeletePodFalse)
 			{
 				err := k8sClient.Create(ctx, pod)
 				Expect(err).Should(Succeed())
@@ -289,10 +287,7 @@ var _ = Describe("pod_controller", func() {
 		})
 		It("should delete the pod which restartPolicy is 'OnFailure'", func() {
 			ctx := context.Background()
-			pod := testPod.DeepCopy()
-			pod.SetAnnotations(map[string]string{
-				constants.PodAnnotationFluentPVCName: testFluentPVCNameSidecarFailed,
-			})
+			pod := generateTestPodManifest(testFluentPVCNameSidecarFailed)
 			pod.Spec.RestartPolicy = corev1.RestartPolicyOnFailure
 			{
 				err := k8sClient.Create(ctx, pod)
@@ -334,10 +329,7 @@ var _ = Describe("pod_controller", func() {
 		})
 		It("should delete the pod which restartPolicy is 'Never'", func() {
 			ctx := context.Background()
-			pod := testPod.DeepCopy()
-			pod.SetAnnotations(map[string]string{
-				constants.PodAnnotationFluentPVCName: testFluentPVCNameSidecarFailed,
-			})
+			pod := generateTestPodManifest(testFluentPVCNameSidecarFailed)
 			pod.Spec.RestartPolicy = corev1.RestartPolicyNever
 			{
 				err := k8sClient.Create(ctx, pod)
@@ -381,10 +373,7 @@ var _ = Describe("pod_controller", func() {
 	Context("An applied pod is a target & the FluentPVC is deleted after the pod is applied", func() {
 		It("should process correctly", func() {
 			ctx := context.Background()
-			pod := testPod.DeepCopy()
-			pod.SetAnnotations(map[string]string{
-				constants.PodAnnotationFluentPVCName: "dummy-fluent-pvc",
-			})
+			pod := generateTestPodManifest("dummy-fluent-pvc")
 			{
 				err := k8sClient.Create(ctx, pod)
 				Expect(err).To(HaveOccurred())
