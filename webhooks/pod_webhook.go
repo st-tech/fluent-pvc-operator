@@ -98,7 +98,10 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 	if _, err := ctrl.CreateOrUpdate(ctx, m, pvc, func() error {
 		pvc.Spec = *fpvc.Spec.PVCSpecTemplate.DeepCopy()
 		controllerutil.AddFinalizer(pvc, constants.PVCFinalizerName)
-		return ctrl.SetControllerReference(b, pvc, m.Scheme())
+		// NOTE: fluentpvcbinding does not own pvc for preventing pvc from becoming terminating when fluentpvcbinding
+		//       is deleted. This is because the finalizer job cannot mount the pvc if it is terminating.
+		// return ctrl.SetControllerReference(b, pvc, m.Scheme())
+		return nil
 	}); err != nil {
 		logger.Error(err, fmt.Sprintf("Cannot CreateOrUpdate PVC='%s'.", name))
 		return admission.Errored(http.StatusInternalServerError, err)

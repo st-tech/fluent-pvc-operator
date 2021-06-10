@@ -12,7 +12,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -52,18 +51,12 @@ func (r *pvcReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		}
 		return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
 	}
-	if owner := metav1.GetControllerOf(pvc); !isOwnerFluentPVCBinding(owner) {
-		return ctrl.Result{}, nil
-	}
 	b := &fluentpvcv1alpha1.FluentPVCBinding{}
-	{
-		owner := metav1.GetControllerOf(pvc)
-		if err := r.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: owner.Name}, b); err != nil {
-			if apierrors.IsNotFound(err) {
-				return ctrl.Result{}, nil
-			}
-			return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
+	if err := r.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: pvc.Name}, b); err != nil {
+		if apierrors.IsNotFound(err) {
+			return ctrl.Result{}, nil
 		}
+		return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
 	}
 	if b.IsConditionUnknown() {
 		logger.Info(fmt.Sprintf("fluentpvcbinding='%s' is unknown status, so skip processing.", b.Name))
@@ -135,13 +128,20 @@ func (r *pvcReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 
 	logger.Info(fmt.Sprintf("Remove the finalizer='%s' from pvc='%s'", constants.PVCFinalizerName, pvc.Name))
 	controllerutil.RemoveFinalizer(pvc, constants.PVCFinalizerName)
-	if err := r.Update(ctx, pvc); err != nil {
+	if err := r.Update(ctx, pvc); client.IgnoreNotFound(err) != nil {
+		if apierrors.IsConflict(err) {
+			// NOTE: Conflict with deleting the pvc in other pvcReconciler#Reconcile.
+			return requeueResult(10 * time.Second), nil
+		}
 		return ctrl.Result{}, xerrors.Errorf(
 			"Failed to remove finalizer from PVC='%s'.: %w",
 			pvc.Name, err,
 		)
 	}
-	logger.Info(fmt.Sprintf("PVC='%s' is finalized.", pvc.Name))
+	logger.Info(fmt.Sprintf("Delete pvc='%s' because it is finalized.", pvc.Name))
+	if err := r.Delete(ctx, pvc, deleteOptionsBackground(&pvc.UID, &pvc.ResourceVersion)); client.IgnoreNotFound(err) != nil {
+		return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
+	}
 	return ctrl.Result{}, nil
 }
 

@@ -8,6 +8,8 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -19,13 +21,14 @@ func matchingOwnerControllerField(ownerName string) client.MatchingFields {
 	return client.MatchingFields(map[string]string{constants.OwnerControllerField: ownerName})
 }
 
-func indexPVCByOwnerFluentPVCBinding(obj client.Object) []string {
-	pvc := obj.(*corev1.PersistentVolumeClaim)
-	owner := metav1.GetControllerOf(pvc)
-	if !isOwnerFluentPVCBinding(owner) {
-		return nil
+func deleteOptionsBackground(uid *types.UID, resourceVersion *string) *client.DeleteOptions {
+	return &client.DeleteOptions{
+		Preconditions: &metav1.Preconditions{
+			UID:             uid,
+			ResourceVersion: resourceVersion,
+		},
+		PropagationPolicy: (*metav1.DeletionPropagation)(pointer.StringPtr(string(metav1.DeletePropagationBackground))),
 	}
-	return []string{owner.Name}
 }
 
 func indexJobByOwnerFluentPVCBinding(obj client.Object) []string {

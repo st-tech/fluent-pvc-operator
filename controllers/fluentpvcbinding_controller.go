@@ -87,9 +87,6 @@ func (r *fluentPVCBindingReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		}
 	}
 	if pvcFound {
-		if err := updateOrNothingControllerReference(ctx, r.Client, b, pvc); err != nil {
-			return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
-		}
 		if pvc.Status.Phase == corev1.ClaimLost {
 			message := fmt.Sprintf("pvc='%s' is lost.", pvcName)
 			logger.Error(xerrors.New(message), message)

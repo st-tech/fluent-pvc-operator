@@ -170,12 +170,8 @@ var _ = Describe("Pod Mutation Webhook", func() {
 			Expect(err).Should(Succeed())
 			Expect(pvc.Finalizers).Should(ContainElement(constants.PVCFinalizerName))
 
-			pvcOwner := metav1.GetControllerOf(pvc)
-			Expect(pvcOwner.APIVersion).Should(BeEquivalentTo(fluentpvcv1alpha1.GroupVersion.String()))
-			Expect(pvcOwner.Kind).Should(BeEquivalentTo("FluentPVCBinding"))
-
 			b := &fluentpvcv1alpha1.FluentPVCBinding{}
-			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pvcOwner.Name}, b)
+			err = k8sClient.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pvc.Name}, b)
 			Expect(err).Should(Succeed())
 			Expect(b.Finalizers).Should(ContainElement(constants.FluentPVCBindingFinalizerName))
 
