@@ -1,4 +1,4 @@
-package controllers
+package e2e
 
 import (
 	"context"
@@ -18,7 +18,7 @@ import (
 	"github.com/st-tech/fluent-pvc-operator/constants"
 )
 
-func GenerateFluentPVCForTest(
+func generateFluentPVCForTest(
 	testFluentPVCName string,
 	testSidecarContainerName string,
 	deletePodIfSidecarContainerTerminationDetected bool,
@@ -69,7 +69,7 @@ func GenerateFluentPVCForTest(
 	}
 }
 
-var _ = Describe("PVC controller", func() {
+var _ = Describe("pod_controller", func() {
 	const (
 		testPodName                     = "test-pod"
 		testContainerName               = "test-container"
@@ -103,15 +103,15 @@ var _ = Describe("PVC controller", func() {
 	)
 	BeforeEach(func() {
 		{
-			err := k8sClient.Create(ctx, GenerateFluentPVCForTest(testFluentPVCNameDefault, testSidecarContainerName, true, []string{"sh", "-c", "sleep 5"}))
+			err := k8sClient.Create(ctx, generateFluentPVCForTest(testFluentPVCNameDefault, testSidecarContainerName, true, []string{"sh", "-c", "sleep 5"}))
 			Expect(err).NotTo(HaveOccurred())
 		}
 		{
-			err := k8sClient.Create(ctx, GenerateFluentPVCForTest(testFluentPVCNameDeletePodFalse, testSidecarContainerName, false, []string{"sh", "-c", "sleep 5; exit 1"}))
+			err := k8sClient.Create(ctx, generateFluentPVCForTest(testFluentPVCNameDeletePodFalse, testSidecarContainerName, false, []string{"sh", "-c", "sleep 5; exit 1"}))
 			Expect(err).NotTo(HaveOccurred())
 		}
 		{
-			err := k8sClient.Create(ctx, GenerateFluentPVCForTest(testFluentPVCNameSidecarFailed, testSidecarContainerName, true, []string{"sh", "-c", "sleep 5; exit 1"}))
+			err := k8sClient.Create(ctx, generateFluentPVCForTest(testFluentPVCNameSidecarFailed, testSidecarContainerName, true, []string{"sh", "-c", "sleep 5; exit 1"}))
 			Expect(err).NotTo(HaveOccurred())
 		}
 	})
@@ -129,62 +129,121 @@ var _ = Describe("PVC controller", func() {
 		}
 		// Clean up the FluentPVC.
 		{
-			err := k8sClient.Delete(ctx, GenerateFluentPVCForTest(testFluentPVCNameDefault, testSidecarContainerName, true, []string{"sh", "-c", "sleep 5"}))
+			err := k8sClient.Delete(ctx, generateFluentPVCForTest(testFluentPVCNameDefault, testSidecarContainerName, true, []string{"sh", "-c", "sleep 5"}))
 			Expect(err).NotTo(HaveOccurred())
 		}
 		{
-			err := k8sClient.Delete(ctx, GenerateFluentPVCForTest(testFluentPVCNameDeletePodFalse, testSidecarContainerName, false, []string{"sh", "-c", "sleep 5; exit 1"}))
+			err := k8sClient.Delete(ctx, generateFluentPVCForTest(testFluentPVCNameDeletePodFalse, testSidecarContainerName, false, []string{"sh", "-c", "sleep 5; exit 1"}))
 			Expect(err).NotTo(HaveOccurred())
 		}
 		{
-			err := k8sClient.Delete(ctx, GenerateFluentPVCForTest(testFluentPVCNameSidecarFailed, testSidecarContainerName, true, []string{"sh", "-c", "sleep 5; exit 1"}))
+			err := k8sClient.Delete(ctx, generateFluentPVCForTest(testFluentPVCNameSidecarFailed, testSidecarContainerName, true, []string{"sh", "-c", "sleep 5; exit 1"}))
 			Expect(err).NotTo(HaveOccurred())
 		}
 	})
-	It("should pod ready when pod is not target", func() {
-		ctx := context.Background()
-		pod := testPod.DeepCopy()
-		{
-			err := k8sClient.Create(ctx, pod)
-			Expect(err).Should(Succeed())
-		}
-		{
-			mutPod := &corev1.Pod{}
-			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pod.Name}, mutPod)
-			Expect(err).Should(Succeed())
-
-			Eventually(func() error {
+	Context("An applied pod is not a target", func() {
+		It("should not do anything, that means the pod continues to be running", func() {
+			ctx := context.Background()
+			pod := testPod.DeepCopy()
+			{
+				err := k8sClient.Create(ctx, pod)
+				Expect(err).Should(Succeed())
+			}
+			{
 				mutPod := &corev1.Pod{}
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pod.Name}, mutPod)
-				if err != nil {
-					return err
-				}
-				if mutPod.Status.Phase != corev1.PodRunning {
-					return errors.New("Pod is not running.")
-				}
-				for _, stat := range mutPod.Status.ContainerStatuses {
-					if !stat.Ready || stat.State.Running == nil {
-						return errors.New("Pod ContainerStatuses are not ready.")
+				Expect(err).Should(Succeed())
+
+				Eventually(func() error {
+					mutPod := &corev1.Pod{}
+					err := k8sClient.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pod.Name}, mutPod)
+					if err != nil {
+						return err
 					}
-				}
-				return nil
-			}, 30).Should(Succeed())
-		}
-	})
-	It("should pod ready when sidecar exited with code 0", func() {
-		ctx := context.Background()
-		pod := testPod.DeepCopy()
-		pod.SetAnnotations(map[string]string{
-			constants.PodAnnotationFluentPVCName: testFluentPVCNameDefault,
+					if mutPod.Status.Phase != corev1.PodRunning {
+						return errors.New("Pod is not running.")
+					}
+					for _, stat := range mutPod.Status.ContainerStatuses {
+						if !stat.Ready || stat.State.Running == nil {
+							return errors.New("Pod ContainerStatuses are not ready.")
+						}
+					}
+					return nil
+				}, 30).Should(Succeed())
+			}
 		})
-		{
-			err := k8sClient.Create(ctx, pod)
-			Expect(err).Should(Succeed())
-		}
-		{
-			mutPod := &corev1.Pod{}
-			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pod.Name}, mutPod)
-			Expect(err).Should(Succeed())
+	})
+	Context("An applied pod is a target & the sidecar container exits with code 0 and is not restarted", func() {
+		It("should not do anything, that means the pod continues to be running", func() {
+			ctx := context.Background()
+			pod := testPod.DeepCopy()
+			pod.SetAnnotations(map[string]string{
+				constants.PodAnnotationFluentPVCName: testFluentPVCNameDefault,
+			})
+			{
+				err := k8sClient.Create(ctx, pod)
+				Expect(err).Should(Succeed())
+			}
+			{
+				mutPod := &corev1.Pod{}
+				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pod.Name}, mutPod)
+				Expect(err).Should(Succeed())
+
+				Eventually(func() error {
+					mutPod := &corev1.Pod{}
+					err := k8sClient.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pod.Name}, mutPod)
+					if err != nil {
+						return err
+					}
+					if mutPod.Status.Phase != corev1.PodRunning {
+						return errors.New("Pod is not running.")
+					}
+					for _, stat := range mutPod.Status.ContainerStatuses {
+						if stat.Name == testSidecarContainerName {
+							if stat.State.Terminated == nil {
+								return errors.New("Sidecar container is still running.")
+							}
+							if stat.State.Terminated != nil && stat.State.Terminated.ExitCode != 0 {
+								return errors.New("Sidecar container terminated with exit code != 0.")
+							}
+						}
+						if stat.Name != testSidecarContainerName && (!stat.Ready || stat.State.Running == nil) {
+							return errors.New("Main container is not ready.")
+						}
+					}
+					return nil
+				}, 30).Should(Succeed())
+
+				Consistently(func() error {
+					mutPod := &corev1.Pod{}
+					err := k8sClient.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pod.Name}, mutPod)
+					if err != nil {
+						return err
+					}
+					if mutPod.Status.Phase != corev1.PodRunning {
+						return errors.New("Pod is not running.")
+					}
+					for _, stat := range mutPod.Status.ContainerStatuses {
+						if stat.Name != testSidecarContainerName && (!stat.Ready || stat.State.Running == nil) {
+							return errors.New("Main container is not ready.")
+						}
+					}
+					return nil
+				}, 10).Should(Succeed())
+			}
+		})
+	})
+	Context("An applied pod is a target & the sidecar container exits with code != 0", func() {
+		It("should not do anything if FluentPVC.DeletePodIfSidecarContainerTerminationDetected = false, that means the pod continues to be running", func() {
+			ctx := context.Background()
+			pod := testPod.DeepCopy()
+			pod.SetAnnotations(map[string]string{
+				constants.PodAnnotationFluentPVCName: testFluentPVCNameDeletePodFalse,
+			})
+			{
+				err := k8sClient.Create(ctx, pod)
+				Expect(err).Should(Succeed())
+			}
 
 			Eventually(func() error {
 				mutPod := &corev1.Pod{}
@@ -200,8 +259,8 @@ var _ = Describe("PVC controller", func() {
 						if stat.State.Terminated == nil {
 							return errors.New("Sidecar container is still running.")
 						}
-						if stat.State.Terminated != nil && stat.State.Terminated.ExitCode != 0 {
-							return errors.New("Sidecar container terminated with exit code != 0.")
+						if stat.State.Terminated != nil && stat.State.Terminated.ExitCode == 0 {
+							return errors.New("Sidecar container terminated with unexpected exit code.")
 						}
 					}
 					if stat.Name != testSidecarContainerName && (!stat.Ready || stat.State.Running == nil) {
@@ -227,160 +286,109 @@ var _ = Describe("PVC controller", func() {
 				}
 				return nil
 			}, 10).Should(Succeed())
-		}
-	})
-	It("should pod ready when sidecar failed with code != 0 and DeletePodIfSidecarContainerTerminationDetected = false", func() {
-		ctx := context.Background()
-		pod := testPod.DeepCopy()
-		pod.SetAnnotations(map[string]string{
-			constants.PodAnnotationFluentPVCName: testFluentPVCNameDeletePodFalse,
 		})
-		{
-			err := k8sClient.Create(ctx, pod)
-			Expect(err).Should(Succeed())
-		}
-
-		Eventually(func() error {
-			mutPod := &corev1.Pod{}
-			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pod.Name}, mutPod)
-			if err != nil {
-				return err
+		It("should delete the pod which restartPolicy is 'OnFailure'", func() {
+			ctx := context.Background()
+			pod := testPod.DeepCopy()
+			pod.SetAnnotations(map[string]string{
+				constants.PodAnnotationFluentPVCName: testFluentPVCNameSidecarFailed,
+			})
+			pod.Spec.RestartPolicy = corev1.RestartPolicyOnFailure
+			{
+				err := k8sClient.Create(ctx, pod)
+				Expect(err).Should(Succeed())
 			}
-			if mutPod.Status.Phase != corev1.PodRunning {
-				return errors.New("Pod is not running.")
-			}
-			for _, stat := range mutPod.Status.ContainerStatuses {
-				if stat.Name == testSidecarContainerName {
-					if stat.State.Terminated == nil {
-						return errors.New("Sidecar container is still running.")
-					}
-					if stat.State.Terminated != nil && stat.State.Terminated.ExitCode == 0 {
-						return errors.New("Sidecar container terminated with unexpected exit code.")
-					}
+			Eventually(func() error {
+				mutPod := &corev1.Pod{}
+				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pod.Name}, mutPod)
+				if err != nil {
+					return err
 				}
-				if stat.Name != testSidecarContainerName && (!stat.Ready || stat.State.Running == nil) {
-					return errors.New("Main container is not ready.")
+				if mutPod.Status.Phase != corev1.PodRunning {
+					return errors.New("Pod is not running.")
 				}
-			}
-			return nil
-		}, 30).Should(Succeed())
-
-		Consistently(func() error {
-			mutPod := &corev1.Pod{}
-			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pod.Name}, mutPod)
-			if err != nil {
-				return err
-			}
-			if mutPod.Status.Phase != corev1.PodRunning {
-				return errors.New("Pod is not running.")
-			}
-			for _, stat := range mutPod.Status.ContainerStatuses {
-				if stat.Name != testSidecarContainerName && (!stat.Ready || stat.State.Running == nil) {
-					return errors.New("Main container is not ready.")
-				}
-			}
-			return nil
-		}, 10).Should(Succeed())
-	})
-	It("should pod with restartPolicy = OnFailure deleted when sidecar failed with code != 0", func() {
-		ctx := context.Background()
-		pod := testPod.DeepCopy()
-		pod.SetAnnotations(map[string]string{
-			constants.PodAnnotationFluentPVCName: testFluentPVCNameSidecarFailed,
-		})
-		pod.Spec.RestartPolicy = corev1.RestartPolicyOnFailure
-		{
-			err := k8sClient.Create(ctx, pod)
-			Expect(err).Should(Succeed())
-		}
-		Eventually(func() error {
-			mutPod := &corev1.Pod{}
-			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pod.Name}, mutPod)
-			if err != nil {
-				return err
-			}
-			if mutPod.Status.Phase != corev1.PodRunning {
-				return errors.New("Pod is not running.")
-			}
-			for _, stat := range mutPod.Status.ContainerStatuses {
-				if stat.Name == testSidecarContainerName {
-					if stat.State.Terminated == nil {
-						return errors.New("Sidecar container is still running.")
+				for _, stat := range mutPod.Status.ContainerStatuses {
+					if stat.Name == testSidecarContainerName {
+						if stat.State.Terminated == nil {
+							return errors.New("Sidecar container is still running.")
+						}
+						if stat.State.Terminated != nil && stat.State.Terminated.ExitCode == 0 {
+							return errors.New("Sidecar container terminated with unexpected exit code.")
+						}
 					}
-					if stat.State.Terminated != nil && stat.State.Terminated.ExitCode == 0 {
-						return errors.New("Sidecar container terminated with unexpected exit code.")
+					if stat.Name != testSidecarContainerName && (!stat.Ready || stat.State.Running == nil) {
+						return errors.New("Main container is not ready.")
 					}
 				}
-				if stat.Name != testSidecarContainerName && (!stat.Ready || stat.State.Running == nil) {
-					return errors.New("Main container is not ready.")
-				}
-			}
-			return nil
-		}, 30).Should(Succeed())
-		Eventually(func() error {
-			mutPod := &corev1.Pod{}
-			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pod.Name}, mutPod)
-			if apierrors.IsNotFound(err) {
 				return nil
-			} else {
-				return errors.New("Pod is still exist.")
-			}
-		}, 30).Should(Succeed())
-	})
-	It("should pod with restartPolicy = Never deleted when sidecar failed with code != 0", func() {
-		ctx := context.Background()
-		pod := testPod.DeepCopy()
-		pod.SetAnnotations(map[string]string{
-			constants.PodAnnotationFluentPVCName: testFluentPVCNameSidecarFailed,
+			}, 30).Should(Succeed())
+			Eventually(func() error {
+				mutPod := &corev1.Pod{}
+				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pod.Name}, mutPod)
+				if apierrors.IsNotFound(err) {
+					return nil
+				} else {
+					return errors.New("Pod is still exist.")
+				}
+			}, 30).Should(Succeed())
 		})
-		pod.Spec.RestartPolicy = corev1.RestartPolicyNever
-		{
-			err := k8sClient.Create(ctx, pod)
-			Expect(err).Should(Succeed())
-		}
-		Eventually(func() error {
-			mutPod := &corev1.Pod{}
-			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pod.Name}, mutPod)
-			if err != nil {
-				return err
+		It("should delete the pod which restartPolicy is 'Never'", func() {
+			ctx := context.Background()
+			pod := testPod.DeepCopy()
+			pod.SetAnnotations(map[string]string{
+				constants.PodAnnotationFluentPVCName: testFluentPVCNameSidecarFailed,
+			})
+			pod.Spec.RestartPolicy = corev1.RestartPolicyNever
+			{
+				err := k8sClient.Create(ctx, pod)
+				Expect(err).Should(Succeed())
 			}
-			if mutPod.Status.Phase != corev1.PodRunning {
-				return errors.New("Pod is not running.")
-			}
-			for _, stat := range mutPod.Status.ContainerStatuses {
-				if stat.Name == testSidecarContainerName {
-					if stat.State.Terminated == nil {
-						return errors.New("Sidecar container is still running.")
+			Eventually(func() error {
+				mutPod := &corev1.Pod{}
+				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pod.Name}, mutPod)
+				if err != nil {
+					return err
+				}
+				if mutPod.Status.Phase != corev1.PodRunning {
+					return errors.New("Pod is not running.")
+				}
+				for _, stat := range mutPod.Status.ContainerStatuses {
+					if stat.Name == testSidecarContainerName {
+						if stat.State.Terminated == nil {
+							return errors.New("Sidecar container is still running.")
+						}
+						if stat.State.Terminated != nil && stat.State.Terminated.ExitCode == 0 {
+							return errors.New("Sidecar container terminated with unexpected exit code.")
+						}
 					}
-					if stat.State.Terminated != nil && stat.State.Terminated.ExitCode == 0 {
-						return errors.New("Sidecar container terminated with unexpected exit code.")
+					if stat.Name != testSidecarContainerName && (!stat.Ready || stat.State.Running == nil) {
+						return errors.New("Main container is not ready.")
 					}
 				}
-				if stat.Name != testSidecarContainerName && (!stat.Ready || stat.State.Running == nil) {
-					return errors.New("Main container is not ready.")
-				}
-			}
-			return nil
-		}, 30).Should(Succeed())
-		Eventually(func() error {
-			mutPod := &corev1.Pod{}
-			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pod.Name}, mutPod)
-			if apierrors.IsNotFound(err) {
 				return nil
-			} else {
-				return errors.New("Pod is still exist.")
-			}
-		}, 30).Should(Succeed())
-	})
-	It("should return error when fluent-pvc resouce is not found", func() {
-		ctx := context.Background()
-		pod := testPod.DeepCopy()
-		pod.SetAnnotations(map[string]string{
-			constants.PodAnnotationFluentPVCName: "dummy-fluent-pvc",
+			}, 30).Should(Succeed())
+			Eventually(func() error {
+				mutPod := &corev1.Pod{}
+				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: pod.Name}, mutPod)
+				if apierrors.IsNotFound(err) {
+					return nil
+				} else {
+					return errors.New("Pod is still exist.")
+				}
+			}, 30).Should(Succeed())
 		})
-		{
-			err := k8sClient.Create(ctx, pod)
-			Expect(err).To(HaveOccurred())
-		}
+	})
+	Context("An applied pod is a target & the FluentPVC is deleted after the pod is applied", func() {
+		It("should process correctly", func() {
+			ctx := context.Background()
+			pod := testPod.DeepCopy()
+			pod.SetAnnotations(map[string]string{
+				constants.PodAnnotationFluentPVCName: "dummy-fluent-pvc",
+			})
+			{
+				err := k8sClient.Create(ctx, pod)
+				Expect(err).To(HaveOccurred())
+			}
+		})
 	})
 })
