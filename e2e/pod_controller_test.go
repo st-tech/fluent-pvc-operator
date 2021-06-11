@@ -13,6 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	fluentpvcv1alpha1 "github.com/st-tech/fluent-pvc-operator/api/v1alpha1"
 	"github.com/st-tech/fluent-pvc-operator/constants"
@@ -118,8 +119,71 @@ func generateTestPodManifest(testPodConfig testPodConfig) *corev1.Pod {
 	return pod
 }
 
+func deleteFluentPVC(ctx context.Context, c client.Client, n string) error {
+	fpvc := &fluentpvcv1alpha1.FluentPVC{}
+	if err := c.Get(ctx, client.ObjectKey{Name: n}, fpvc); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+	bindings := &fluentpvcv1alpha1.FluentPVCBindingList{}
+	if err := c.List(ctx, bindings); client.IgnoreNotFound(err) != nil {
+		return err
+	}
+	for _, b := range bindings.Items {
+		if !metav1.IsControlledBy(&b, fpvc) {
+			continue
+		}
+		if err := deleteFluentPVCBinding(ctx, c, &b); err != nil {
+			return err
+		}
+	}
+	if controllerutil.ContainsFinalizer(fpvc, constants.FluentPVCFinalizerName) {
+		controllerutil.RemoveFinalizer(fpvc, constants.FluentPVCFinalizerName)
+		if err := c.Update(ctx, fpvc); err != nil {
+			return err
+		}
+	}
+	if err := c.Delete(ctx, fpvc); err != nil {
+		return err
+	}
+	return nil
+}
+
+func deleteFluentPVCBinding(ctx context.Context, c client.Client, b *fluentpvcv1alpha1.FluentPVCBinding) error {
+	pvc := &corev1.PersistentVolumeClaim{}
+	pvcFound := true
+	if err := c.Get(ctx, client.ObjectKey{Namespace: b.Namespace, Name: b.Spec.PVC.Name}, pvc); err != nil {
+		if apierrors.IsNotFound(err) {
+			pvcFound = false
+		} else {
+			return err
+		}
+	}
+	if pvcFound && controllerutil.ContainsFinalizer(pvc, constants.PVCFinalizerName) {
+		controllerutil.RemoveFinalizer(pvc, constants.PVCFinalizerName)
+		if err := c.Update(ctx, pvc); client.IgnoreNotFound(err) != nil {
+			return err
+		}
+	}
+	if controllerutil.ContainsFinalizer(b, constants.FluentPVCBindingFinalizerName) {
+		controllerutil.RemoveFinalizer(b, constants.FluentPVCBindingFinalizerName)
+		if err := c.Update(ctx, b); client.IgnoreNotFound(err) != nil {
+			return err
+		}
+	}
+	if err := c.Delete(ctx, b, client.GracePeriodSeconds(0)); client.IgnoreNotFound(err) != nil {
+		return err
+	}
+	return nil
+}
+
 var _ = Describe("pod_controller", func() {
 	BeforeEach(func() {
+		Eventually(func() error { return deleteFluentPVC(ctx, k8sClient, testFluentPVCNameDefault)}, 10).Should(Succeed())
+		Eventually(func() error { return deleteFluentPVC(ctx, k8sClient, testFluentPVCNameDeletePodFalse)}, 10).Should(Succeed())
+		Eventually(func() error { return deleteFluentPVC(ctx, k8sClient, testFluentPVCNameSidecarFailed)}, 10).Should(Succeed())
 		{
 			err := k8sClient.Create(ctx, generateFluentPVCForTest(testFluentPVCNameDefault, testSidecarContainerName, true, []string{"sh", "-c", "sleep 5"}))
 			Expect(err).NotTo(HaveOccurred())
@@ -146,18 +210,9 @@ var _ = Describe("pod_controller", func() {
 			}
 		}
 		// Clean up the FluentPVC.
-		{
-			err := k8sClient.Delete(ctx, generateFluentPVCForTest(testFluentPVCNameDefault, testSidecarContainerName, true, []string{"sh", "-c", "sleep 5"}))
-			Expect(err).NotTo(HaveOccurred())
-		}
-		{
-			err := k8sClient.Delete(ctx, generateFluentPVCForTest(testFluentPVCNameDeletePodFalse, testSidecarContainerName, false, []string{"sh", "-c", "sleep 5; exit 1"}))
-			Expect(err).NotTo(HaveOccurred())
-		}
-		{
-			err := k8sClient.Delete(ctx, generateFluentPVCForTest(testFluentPVCNameSidecarFailed, testSidecarContainerName, true, []string{"sh", "-c", "sleep 5; exit 1"}))
-			Expect(err).NotTo(HaveOccurred())
-		}
+		Eventually(func() error { return deleteFluentPVC(ctx, k8sClient, testFluentPVCNameDefault)}, 10).Should(Succeed())
+		Eventually(func() error { return deleteFluentPVC(ctx, k8sClient, testFluentPVCNameDeletePodFalse)}, 10).Should(Succeed())
+		Eventually(func() error { return deleteFluentPVC(ctx, k8sClient, testFluentPVCNameSidecarFailed)}, 10).Should(Succeed())
 	})
 	Context("An applied pod is not a target", func() {
 		BeforeEach(func() {
