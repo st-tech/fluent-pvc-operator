@@ -21,17 +21,6 @@ const (
 	testFluentPVCBindingName          = "test-fluent-pvc-binding"
 )
 
-// func generateTestBindingManifest() *fluentpvcv1alpha1.FluentPVCBinding {
-// 	b := &fluentpvcv1alpha1.FluentPVCBinding{}
-// 	b.SetName(testFluentPVCBindingName)
-// 	b.SetNamespace(testNamespace)
-// 	// b.setConditionTrue(FluentPVCBindingConditionFinalizerJobApplied, "reason", "message")
-// 	b.Spec.FluentPVCName = testFluentPVCNameDefaultSucceeded
-// 	b.Spec.PodName = testPodName
-// 	b.Spec.PVCName = testFluentPVCBindingName
-// 	return b
-// }
-
 var _ = Describe("pvc_controller", func() {
 	BeforeEach(func() {
 		{
@@ -62,22 +51,6 @@ var _ = Describe("pvc_controller", func() {
 			k8sClient.Update(ctx, &pvc)
 		}
 
-		// b := &fluentpvcv1alpha1.FluentPVCBinding{}
-		// b.SetNamespace(testNamespace)
-		// b.SetName(testFluentPVCBindingName)
-		// if err := k8sClient.Delete(ctx, b); err != nil {
-		// 	if !apierrors.IsNotFound(err) {
-		// 		Expect(err).NotTo(HaveOccurred())
-		// 	}
-		// }
-		// pvc := &corev1.PersistentVolumeClaim{}
-		// pvc.SetNamespace(testNamespace)
-		// pvc.SetName(testFluentPVCBindingName)
-		// if err := k8sClient.Delete(ctx, pvc); err != nil {
-		// 	if !apierrors.IsNotFound(err) {
-		// 		Expect(err).NotTo(HaveOccurred())
-		// 	}
-		// }
 		// Clean up the FluentPVC.
 		{
 			err := k8sClient.Delete(ctx, generateFluentPVCForTest(testFluentPVCNameDefaultSucceeded, testSidecarContainerName, true, []string{"sh", "-c", "sleep 100"}))
@@ -99,48 +72,10 @@ var _ = Describe("pvc_controller", func() {
 				ContainerArgs:          []string{"sleep", "100"},
 				RestartPolicy:          corev1.RestartPolicyOnFailure,
 			})
-			// podPatched := pod.DeepCopy()
 			{
 				err := k8sClient.Create(ctx, pod)
 				Expect(err).Should(Succeed())
 			}
-
-			// b := generateTestBindingManifest()
-			// {
-			// 	ctrl.SetControllerReference(fpvc, b, k8sClient.Scheme())
-			// 	err := k8sClient.Create(ctx, b)
-			// 	Expect(err).Should(Succeed())
-			// }
-
-			// pvc := &corev1.PersistentVolumeClaim{}
-			// {
-			// 	pvc.SetName(testFluentPVCBindingName)
-			// 	pvc.SetNamespace(testNamespace)
-			// 	pvc.Spec = *fpvc.Spec.PVCSpecTemplate.DeepCopy()
-			// 	// Skip AddFinalizer step for test
-			// 	// controllerutil.AddFinalizer(pvc, constants.PVCFinalizerName)
-			// 	ctrl.SetControllerReference(b, pvc, k8sClient.Scheme())
-			// 	err := k8sClient.Create(ctx, pvc)
-			// 	Expect(err).Should(Succeed())
-			// }
-			// {
-			// 	podutils.InjectOrReplaceVolume(&podPatched.Spec, &corev1.Volume{
-			// 		Name: fpvc.Spec.VolumeName,
-			// 		VolumeSource: corev1.VolumeSource{
-			// 			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-			// 				ClaimName: testFluentPVCBindingName,
-			// 			},
-			// 		},
-			// 	})
-			// 	podutils.InjectOrReplaceContainer(&podPatched.Spec, fpvc.Spec.SidecarContainerTemplate.DeepCopy())
-			// 	podutils.InjectOrReplaceVolumeMount(&podPatched.Spec, &corev1.VolumeMount{
-			// 		Name:      fpvc.Spec.VolumeName,
-			// 		MountPath: fpvc.Spec.CommonMountPath,
-			// 	})
-			// 	_, err := ctrl.CreateOrUpdate(ctx, k8sClient, podPatched, func() error { return nil })
-			// 	// err := k8sClient.Update(ctx, podPatched)
-			// 	Expect(err).Should(Succeed())
-			// }
 		})
 		It("pod ready -> pod deletion (not found) -> pvc finalized", func() {
 			ctx := context.Background()
@@ -202,22 +137,18 @@ var _ = Describe("pvc_controller", func() {
 				return nil
 			}, 30).Should(Succeed())
 		})
-		It("should not do anything, that means the pvc continues to be exist when pvc owner != binding", func() {
+		It("should not do anything, that means pvc is continue to be exist when binding is Unknown condition", func() {
 			ctx := context.Background()
-			mutPod := &corev1.Pod{}
+			bList := &fluentpvcv1alpha1.FluentPVCBindingList{}
 			{
-				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, mutPod)
+				err := k8sClient.List(ctx, bList)
 				Expect(err).Should(Succeed())
 			}
-			b := &fluentpvcv1alpha1.FluentPVCBindingList{}
-			{
-				err := k8sClient.List(ctx, b)
-				Expect(err).Should(Succeed())
-			}
+			bindingAndPVCName := bList.Items[0].Name
 
 			Eventually(func() error {
 				{
-					mutPod = &corev1.Pod{}
+					mutPod := &corev1.Pod{}
 					err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, mutPod)
 					Expect(err).Should(Succeed())
 					if mutPod.Status.Phase != corev1.PodRunning {
@@ -231,37 +162,68 @@ var _ = Describe("pvc_controller", func() {
 				}
 				{
 					pvc := &corev1.PersistentVolumeClaim{}
-					err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: b.Items[0].Name}, pvc)
+					err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, pvc)
 					Expect(err).Should(Succeed())
 					if pvc.Status.Phase != corev1.ClaimBound {
 						return errors.New("PVC is not bound.")
 					}
-
+					pvc.Status.Phase = corev1.ClaimLost
+					err = k8sClient.Update(ctx, pvc)
+					Expect(err).Should(Succeed())
 				}
 				return nil
 			}, 30).Should(Succeed())
 
-			if err := k8sClient.Delete(ctx, mutPod, &client.DeleteOptions{
-				GracePeriodSeconds: pointer.Int64Ptr(0),
-			}); err != nil {
-				if !apierrors.IsNotFound(err) {
-					Expect(err).NotTo(HaveOccurred())
+			{
+				pvc := &corev1.PersistentVolumeClaim{}
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, pvc); err != nil {
+					Expect(err).Should(Succeed())
+				}
+				pv := &corev1.PersistentVolume{}
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: pvc.Spec.VolumeName}, pv); err != nil {
+					Expect(err).Should(Succeed())
+				}
+				controllerutil.RemoveFinalizer(pv, "kubernetes.io/pv-protection")
+				if err := k8sClient.Update(ctx, pv); err != nil {
+					Expect(err).Should(Succeed())
+				}
+				if err := k8sClient.Delete(ctx, pv); err != nil {
+					Expect(err).Should(Succeed())
 				}
 			}
-
-			Eventually(func() error {
-				pvc := &corev1.PersistentVolumeClaim{}
-				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: b.Items[0].Name}, pvc)
-				if err != nil {
+			{
+				mutPod := &corev1.Pod{}
+				mutPod.SetName(testPodName)
+				mutPod.SetNamespace(testNamespace)
+				if err := k8sClient.Delete(ctx, mutPod, &client.DeleteOptions{
+					GracePeriodSeconds: pointer.Int64Ptr(0),
+				}); err != nil {
 					if !apierrors.IsNotFound(err) {
 						Expect(err).NotTo(HaveOccurred())
 					}
 				}
-				if pvc.Status.Phase == corev1.ClaimBound {
-					return errors.New("PVC is still bound.")
+			}
+
+			Eventually(func() error {
+				b := &fluentpvcv1alpha1.FluentPVCBinding{}
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, b); err != nil {
+					Expect(err).Should(Succeed())
+				}
+				if !b.IsConditionUnknown() {
+					return errors.New("FluentPVCBinding is not Unknown condition.")
 				}
 				return nil
 			}, 30).Should(Succeed())
+
+			Consistently(func() error {
+				pvc := &corev1.PersistentVolumeClaim{}
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, pvc); err != nil {
+					if !apierrors.IsNotFound(err) {
+						Expect(err).NotTo(HaveOccurred())
+					}
+				}
+				return nil
+			}, 20).Should(Succeed())
 		})
 	})
 })
