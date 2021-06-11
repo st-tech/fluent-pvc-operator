@@ -36,6 +36,7 @@ func generateFluentPVCForTest(
 	testSidecarContainerName string,
 	deletePodIfSidecarContainerTerminationDetected bool,
 	sidecarContainerCommand []string,
+	finalizerContainerCommand []string,
 ) *fluentpvcv1alpha1.FluentPVC {
 	return &fluentpvcv1alpha1.FluentPVC{
 		TypeMeta: metav1.TypeMeta{
@@ -65,13 +66,14 @@ func generateFluentPVCForTest(
 			},
 			DeletePodIfSidecarContainerTerminationDetected: deletePodIfSidecarContainerTerminationDetected,
 			PVCFinalizerJobSpecTemplate: batchv1.JobSpec{
+				BackoffLimit: pointer.Int32Ptr(0),
 				Template: corev1.PodTemplateSpec{
 					Spec: corev1.PodSpec{
-						RestartPolicy: corev1.RestartPolicyOnFailure,
+						RestartPolicy: corev1.RestartPolicyNever,
 						Containers: []corev1.Container{
 							{
 								Name:    "test-finalizer-container",
-								Command: []string{"echo", "test"},
+								Command: finalizerContainerCommand,
 								Image:   "alpine",
 							},
 						},
@@ -190,15 +192,15 @@ var _ = Describe("pod_controller", func() {
 		Eventually(func() error { return deleteFluentPVC(ctx, k8sClient, testFluentPVCNameDeletePodFalse) }, 10).Should(Succeed())
 		Eventually(func() error { return deleteFluentPVC(ctx, k8sClient, testFluentPVCNameSidecarFailed) }, 10).Should(Succeed())
 		{
-			err := k8sClient.Create(ctx, generateFluentPVCForTest(testFluentPVCNameDefault, testSidecarContainerName, true, []string{"sh", "-c", "sleep 5"}))
+			err := k8sClient.Create(ctx, generateFluentPVCForTest(testFluentPVCNameDefault, testSidecarContainerName, true, []string{"sh", "-c", "sleep 5"}, []string{"echo", "test"}))
 			Expect(err).NotTo(HaveOccurred())
 		}
 		{
-			err := k8sClient.Create(ctx, generateFluentPVCForTest(testFluentPVCNameDeletePodFalse, testSidecarContainerName, false, []string{"sh", "-c", "sleep 5; exit 1"}))
+			err := k8sClient.Create(ctx, generateFluentPVCForTest(testFluentPVCNameDeletePodFalse, testSidecarContainerName, false, []string{"sh", "-c", "sleep 5; exit 1"}, []string{"echo", "test"}))
 			Expect(err).NotTo(HaveOccurred())
 		}
 		{
-			err := k8sClient.Create(ctx, generateFluentPVCForTest(testFluentPVCNameSidecarFailed, testSidecarContainerName, true, []string{"sh", "-c", "sleep 5; exit 1"}))
+			err := k8sClient.Create(ctx, generateFluentPVCForTest(testFluentPVCNameSidecarFailed, testSidecarContainerName, true, []string{"sh", "-c", "sleep 5; exit 1"}, []string{"echo", "test"}))
 			Expect(err).NotTo(HaveOccurred())
 		}
 	})
