@@ -137,6 +137,53 @@ var _ = Describe("pvc_controller", func() {
 				return nil
 			}, 30).Should(Succeed())
 		})
+		It("should not do anything, that means pvc is continue to be exist when binding is not OutOfUse condition", func() {
+			ctx := context.Background()
+			mutPod := &corev1.Pod{}
+			if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, mutPod); err != nil {
+				Expect(err).Should(Succeed())
+			}
+
+			b := &fluentpvcv1alpha1.FluentPVCBindingList{}
+			if err := k8sClient.List(ctx, b); err != nil {
+				Expect(err).Should(Succeed())
+			}
+
+			Eventually(func() error {
+				mutPod = &corev1.Pod{}
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, mutPod); err != nil {
+					Expect(err).Should(Succeed())
+				}
+				if mutPod.Status.Phase != corev1.PodRunning {
+					return errors.New("Pod is not running.")
+				}
+				for _, stat := range mutPod.Status.ContainerStatuses {
+					if !stat.Ready || stat.State.Running == nil {
+						return errors.New("Pod ContainerStatuses are not ready.")
+					}
+				}
+
+				pvc := &corev1.PersistentVolumeClaim{}
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: b.Items[0].Name}, pvc); err != nil {
+					Expect(err).Should(Succeed())
+				}
+				if pvc.Status.Phase != corev1.ClaimBound {
+					return errors.New("PVC is not bound.")
+				}
+				return nil
+			}, 30).Should(Succeed())
+
+			Consistently(func() error {
+				pvc := &corev1.PersistentVolumeClaim{}
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: b.Items[0].Name}, pvc); err != nil {
+					Expect(err).Should(Succeed())
+				}
+				if pvc.Status.Phase != corev1.ClaimBound {
+					return errors.New("PVC is not bound.")
+				}
+				return nil
+			}, 20).Should(Succeed())
+		})
 		It("should not do anything, that means pvc is continue to be exist when binding is Unknown condition", func() {
 			ctx := context.Background()
 			bList := &fluentpvcv1alpha1.FluentPVCBindingList{}
