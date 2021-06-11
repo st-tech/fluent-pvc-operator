@@ -146,7 +146,7 @@ launch-kind: kind kubectl shutdown-kind
 .PHONY: apply-cert-manager
 apply-cert-manager: kubectl
 	$(BINDIR)/kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v$(CERT_MANAGER_VERSION)/cert-manager.yaml
-	$(BINDIR)/kubectl wait -n cert-manager --for=condition=Available deployments --all --timeout=60s
+	$(BINDIR)/kubectl wait -n cert-manager --for=condition=Available deployments --all --timeout=300s
 
 .PHONY: load-image-kind
 load-image-kind: docker-build kind
@@ -178,7 +178,7 @@ endif
 
 .PHONY: wait-fluent-pvc-operator
 wait-fluent-pvc-operator:
-	$(BINDIR)/kubectl wait -n $(FLUENT_PVC_NAMESPACE) --for=condition=Available deployments --all --timeout=60s
+	$(BINDIR)/kubectl wait -n $(FLUENT_PVC_NAMESPACE) --for=condition=Available deployments --all --timeout=300s
 
 .PHONY: setup-e2e-test
 setup-e2e-test: launch-kind apply-cert-manager load-image-kind deploy wait-fluent-pvc-operator
