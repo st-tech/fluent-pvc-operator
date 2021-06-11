@@ -7,7 +7,6 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/go-logr/logr"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -17,7 +16,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	fluentpvcv1alpha1 "github.com/st-tech/fluent-pvc-operator/api/v1alpha1"
@@ -31,15 +29,20 @@ import (
 //+kubebuilder:rbac:groups="batch",resources=jobs,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;update
 
-type PVCReconciler struct {
+type pvcReconciler struct {
 	client.Client
-	APIReader client.Reader
-	Log       logr.Logger
-	Scheme    *runtime.Scheme
+	Scheme *runtime.Scheme
 }
 
-func (r *PVCReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger := log.FromContext(ctx).WithName("controllers").WithName("pvc_controller")
+func NewPVCReconciler(mgr ctrl.Manager) *pvcReconciler {
+	return &pvcReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}
+}
+
+func (r *pvcReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	logger := ctrl.LoggerFrom(ctx).WithName("pvcReconciler").WithName("Reconcile")
 
 	pvc := &corev1.PersistentVolumeClaim{}
 	if err := r.Get(ctx, req.NamespacedName, pvc); err != nil {
@@ -48,18 +51,19 @@ func (r *PVCReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		}
 		return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
 	}
-	if owner := metav1.GetControllerOf(pvc); !isOwnerFluentPVCBinding(owner) {
-		return ctrl.Result{}, nil
-	}
 	b := &fluentpvcv1alpha1.FluentPVCBinding{}
-	{
-		owner := metav1.GetControllerOf(pvc)
-		if err := r.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: owner.Name}, b); err != nil {
-			if apierrors.IsNotFound(err) {
-				return ctrl.Result{}, nil
-			}
-			return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
+	if err := r.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: pvc.Name}, b); err != nil {
+		if apierrors.IsNotFound(err) {
+			return ctrl.Result{}, nil
 		}
+		return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
+	}
+	if pvc.UID != b.Spec.PVC.UID {
+		logger.Info(fmt.Sprintf(
+			"Skip processing because pvc.UID='%s' is different from fluentpvcbinding.Spec.PVC.UID='%s' for name='%s'.",
+			pvc.UID, b.Spec.PVC.UID, pvc.Name,
+		))
+		return ctrl.Result{}, nil
 	}
 	if b.IsConditionUnknown() {
 		logger.Info(fmt.Sprintf("fluentpvcbinding='%s' is unknown status, so skip processing.", b.Name))
@@ -76,7 +80,7 @@ func (r *PVCReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	))
 	if !b.IsConditionFinalizerJobApplied() {
 		jobs := &batchv1.JobList{}
-		if err := r.List(ctx, jobs, client.MatchingFields(map[string]string{constants.OwnerControllerField: b.Name})); client.IgnoreNotFound(err) != nil {
+		if err := r.List(ctx, jobs, matchingOwnerControllerField(b.Name)); client.IgnoreNotFound(err) != nil {
 			return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
 		}
 		if len(jobs.Items) != 0 {
@@ -131,17 +135,24 @@ func (r *PVCReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 
 	logger.Info(fmt.Sprintf("Remove the finalizer='%s' from pvc='%s'", constants.PVCFinalizerName, pvc.Name))
 	controllerutil.RemoveFinalizer(pvc, constants.PVCFinalizerName)
-	if err := r.Update(ctx, pvc); err != nil {
+	if err := r.Update(ctx, pvc); client.IgnoreNotFound(err) != nil {
+		if apierrors.IsConflict(err) {
+			// NOTE: Conflict with deleting the pvc in other pvcReconciler#Reconcile.
+			return requeueResult(10 * time.Second), nil
+		}
 		return ctrl.Result{}, xerrors.Errorf(
 			"Failed to remove finalizer from PVC='%s'.: %w",
 			pvc.Name, err,
 		)
 	}
-	logger.Info(fmt.Sprintf("PVC='%s' is finalized.", pvc.Name))
+	logger.Info(fmt.Sprintf("Delete pvc='%s' because it is finalized.", pvc.Name))
+	if err := r.Delete(ctx, pvc, deleteOptionsBackground(&pvc.UID, &pvc.ResourceVersion)); client.IgnoreNotFound(err) != nil {
+		return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
+	}
 	return ctrl.Result{}, nil
 }
 
-func (r *PVCReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *pvcReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	pred := predicate.Funcs{
 		CreateFunc:  func(event.CreateEvent) bool { return true },
 		DeleteFunc:  func(event.DeleteEvent) bool { return false },

@@ -4,6 +4,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // FluentPVCSpec defines the desired state of FluentPVC
@@ -71,13 +72,22 @@ type FluentPVCList struct {
 type FluentPVCBindingSpec struct {
 	// FluentPVC Name to bind.
 	//+kubebuiler:validation:Required
-	FluentPVCName string `json:"fluentPVCName"`
+	FluentPVC ObjectIdentity `json:"fluentPVC"`
 	// PVC Name to bind.
 	//+kubebuiler:validation:Required
-	PVCName string `json:"pvcName"`
+	PVC ObjectIdentity `json:"pvc"`
 	// Pod Name to bind.
 	//+kubebuiler:validation:Required
-	PodName string `json:"podName"`
+	Pod ObjectIdentity `json:"pod"`
+}
+
+type ObjectIdentity struct {
+	// Object Name
+	//+kubebuiler:validation:Required
+	Name string `json:"name"`
+	// Object UID
+	//+kubebuiler:validation:Required
+	UID types.UID `json:"uid"`
 }
 
 type FluentPVCBindingConditionType string

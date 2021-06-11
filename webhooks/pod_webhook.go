@@ -10,7 +10,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
@@ -49,7 +48,7 @@ func NewPodMutator(c client.Client) admission.Handler {
 }
 
 func (m *podMutator) Handle(ctx context.Context, req admission.Request) admission.Response {
-	logger := log.FromContext(ctx).WithName("webhooks").WithName("pod-mutation-webhook")
+	logger := ctrl.LoggerFrom(ctx).WithName("podMutator").WithName("Handle")
 	pod := &corev1.Pod{}
 	if err := m.decoder.Decode(req, pod); err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
@@ -77,20 +76,6 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 		namespace = pod.Namespace
 	}
 
-	logger.Info(fmt.Sprintf("CreateOrUpdate FluentPVCBinding='%s'.", name))
-	b := &fluentpvcv1alpha1.FluentPVCBinding{}
-	b.SetName(name)
-	b.SetNamespace(namespace)
-	if _, err := ctrl.CreateOrUpdate(ctx, m, b, func() error {
-		b.Spec.FluentPVCName = fpvc.Name
-		b.Spec.PodName = pod.Name
-		b.Spec.PVCName = name
-		return ctrl.SetControllerReference(fpvc, b, m.Scheme())
-	}); err != nil {
-		logger.Error(err, fmt.Sprintf("Cannot CreateOrUpdate FluentPVCBinding='%s'.", name))
-		return admission.Errored(http.StatusInternalServerError, err)
-	}
-
 	logger.Info(fmt.Sprintf("CreateOrUpdate PVC='%s'.", name))
 	pvc := &corev1.PersistentVolumeClaim{}
 	pvc.SetName(name)
@@ -98,9 +83,27 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 	if _, err := ctrl.CreateOrUpdate(ctx, m, pvc, func() error {
 		pvc.Spec = *fpvc.Spec.PVCSpecTemplate.DeepCopy()
 		controllerutil.AddFinalizer(pvc, constants.PVCFinalizerName)
-		return ctrl.SetControllerReference(b, pvc, m.Scheme())
+		// NOTE: fluentpvcbinding does not own pvc for preventing pvc from becoming terminating when fluentpvcbinding
+		//       is deleted. This is because the finalizer job cannot mount the pvc if it is terminating.
+		// return ctrl.SetControllerReference(b, pvc, m.Scheme())
+		return nil
 	}); err != nil {
 		logger.Error(err, fmt.Sprintf("Cannot CreateOrUpdate PVC='%s'.", name))
+		return admission.Errored(http.StatusInternalServerError, err)
+	}
+
+	logger.Info(fmt.Sprintf("CreateOrUpdate FluentPVCBinding='%s'.", name))
+	b := &fluentpvcv1alpha1.FluentPVCBinding{}
+	b.SetName(name)
+	b.SetNamespace(namespace)
+	if _, err := ctrl.CreateOrUpdate(ctx, m, b, func() error {
+		b.SetFluentPVC(fpvc)
+		b.SetPod(pod)
+		b.SetPVC(pvc)
+		controllerutil.AddFinalizer(b, constants.FluentPVCBindingFinalizerName)
+		return ctrl.SetControllerReference(fpvc, b, m.Scheme())
+	}); err != nil {
+		logger.Error(err, fmt.Sprintf("Cannot CreateOrUpdate FluentPVCBinding='%s'.", name))
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
 

@@ -6,15 +6,12 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	fluentpvcv1alpha1 "github.com/st-tech/fluent-pvc-operator/api/v1alpha1"
@@ -25,15 +22,20 @@ import (
 //+kubebuilder:rbac:groups=fluent-pvc-operator.tech.zozo.com,resources=fluentpvcs/status,verbs=get
 //+kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;delete
 
-type PodReconciler struct {
+type podReconciler struct {
 	client.Client
-	APIReader client.Reader
-	Log       logr.Logger
-	Scheme    *runtime.Scheme
+	Scheme *runtime.Scheme
 }
 
-func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger := log.FromContext(ctx).WithName("controllers").WithName("pod_controller")
+func NewPodReconciler(mgr ctrl.Manager) *podReconciler {
+	return &podReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}
+}
+
+func (r *podReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	logger := ctrl.LoggerFrom(ctx).WithName("podReconciler").WithName("Reconcile")
 
 	pod := &corev1.Pod{}
 	if err := r.Get(ctx, req.NamespacedName, pod); err != nil {
@@ -51,8 +53,8 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		fluentPVCName = v
 	}
 
-	if !isPodReadyPhase(pod) {
-		logger.Info(fmt.Sprintf("Skip processing because pod='%s' is '%s' status.", pod.Name, pod.Status.Phase))
+	if !isPodRunningPhase(pod) {
+		logger.Info(fmt.Sprintf("Skip processing because pod='%s' is '%s' phase.", pod.Name, pod.Status.Phase))
 		return ctrl.Result{}, nil
 	}
 
@@ -106,28 +108,14 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		))
 	}
 	// TODO: Respects PodDisruptionBudget.
-	gracePeriodSeconds := int64(60 * 5) // 5 minutes
-	if pod.DeletionGracePeriodSeconds != nil {
-		if *pod.DeletionGracePeriodSeconds > gracePeriodSeconds {
-			gracePeriodSeconds = *pod.DeletionGracePeriodSeconds
-		}
-	}
-	propagationPolicy := metav1.DeletePropagationBackground
-	deleteOptions := &client.DeleteOptions{
-		GracePeriodSeconds: &gracePeriodSeconds,
-		Preconditions: &metav1.Preconditions{
-			UID:             &pod.UID,
-			ResourceVersion: &pod.ResourceVersion,
-		},
-		PropagationPolicy: &propagationPolicy,
-	}
+	deleteOptions := deleteOptionsBackground(&pod.UID, &pod.ResourceVersion)
 	if err := r.Delete(ctx, pod, deleteOptions); client.IgnoreNotFound(err) != nil {
 		return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
 	}
 	return ctrl.Result{}, nil
 }
 
-func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *podReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	pred := predicate.Funcs{
 		CreateFunc:  func(event.CreateEvent) bool { return true },
 		DeleteFunc:  func(event.DeleteEvent) bool { return false },
