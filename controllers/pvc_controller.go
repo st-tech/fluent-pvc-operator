@@ -100,19 +100,25 @@ func (r *pvcReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		j.SetNamespace(b.Namespace)
 		if _, err := ctrl.CreateOrUpdate(ctx, r.Client, j, func() error {
 			j.Spec = *fpvc.Spec.PVCFinalizerJobSpecTemplate.DeepCopy()
+			for _, v := range fpvc.Spec.CommonVolumes {
+				podutils.InjectOrReplaceVolume(&j.Spec.Template.Spec, v.DeepCopy())
+			}
 			podutils.InjectOrReplaceVolume(&j.Spec.Template.Spec, &corev1.Volume{
-				Name: fpvc.Spec.VolumeName,
+				Name: fpvc.Spec.PVCVolumeName,
 				VolumeSource: corev1.VolumeSource{
 					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
 						ClaimName: pvc.Name,
 					},
 				},
 			})
+			for _, vm := range fpvc.Spec.CommonVolumeMounts {
+				podutils.InjectOrReplaceVolumeMount(&j.Spec.Template.Spec, vm.DeepCopy())
+			}
 			podutils.InjectOrReplaceVolumeMount(&j.Spec.Template.Spec, &corev1.VolumeMount{
-				Name:      fpvc.Spec.VolumeName,
-				MountPath: fpvc.Spec.CommonMountPath,
+				Name:      fpvc.Spec.PVCVolumeName,
+				MountPath: fpvc.Spec.PVCVolumeMountPath,
 			})
-			for _, e := range fpvc.Spec.CommonEnv {
+			for _, e := range fpvc.Spec.CommonEnvs {
 				podutils.InjectOrReplaceEnv(&j.Spec.Template.Spec, e.DeepCopy())
 			}
 			return ctrl.SetControllerReference(b, j, r.Scheme)

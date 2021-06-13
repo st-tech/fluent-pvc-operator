@@ -12,26 +12,34 @@ type FluentPVCSpec struct {
 	// PVC spec template to inject into pod manifests.
 	//+kubebuiler:validation:Required
 	PVCSpecTemplate corev1.PersistentVolumeClaimSpec `json:"pvcSpecTemplate"`
+	// Job template to finalize PVCs.
+	//+kubebuiler:validation:Required
+	PVCFinalizerJobSpecTemplate batchv1.JobSpec `json:"pvcFinalizerJobSpecTemplate"`
 	// Name of the Volume to mount the PVC.
+	// Must be a DNS_LABEL and unique within the pod
+	// ref. https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
 	//+kubebuiler:validation:Required
-	VolumeName string `json:"volumeName"`
+	PVCVolumeName string `json:"pvcVolumeName"`
 	// Path to mount the PVC.
+	// Must not contain ':'
 	//+kubebuiler:validation:Required
-	CommonMountPath string `json:"commonMountPath"`
-	// Common environment variables to inject into all containers.
-	//+optional
-	CommonEnv []corev1.EnvVar `json:"commonEnv,omitempty"`
+	PVCVolumeMountPath string `json:"pvcVolumeMountPath"`
 	// Sidecare containers templates that must include a fluentd definition.
 	//+kubebuiler:validation:Required
-	//+kubebuiler:validation:MinItems=1
 	SidecarContainerTemplate corev1.Container `json:"sidecarContainerTemplate"`
+	// Common environment variables to inject into all containers.
+	//+optional
+	CommonEnvs []corev1.EnvVar `json:"commonEnvs,omitempty"`
+	// Common volumes to inject into all pods.
+	//+optional
+	CommonVolumes []corev1.Volume `json:"commonVolumes,omitempty"`
+	// Common volumeMounts to inject into all containers.
+	//+optional
+	CommonVolumeMounts []corev1.VolumeMount `json:"commonVolumeMounts,omitempty"`
 	// Delete the pod if the sidecar container termination is detected.
 	//+kubebuiler:validation:Required
 	//+kubebuilder:default:true
 	DeletePodIfSidecarContainerTerminationDetected bool `json:"deletePodIfSidecarContainerTerminationDetected,omitempty"`
-	// Job template to finalize PVCs.
-	//+kubebuiler:validation:Required
-	PVCFinalizerJobSpecTemplate batchv1.JobSpec `json:"pvcFinalizerJobSpecTemplate"`
 }
 
 // FluentPVCStatus defines the observed state of FluentPVC

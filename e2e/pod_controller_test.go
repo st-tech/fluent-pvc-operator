@@ -55,9 +55,9 @@ func generateFluentPVCForTest(
 				},
 				StorageClassName: func(s string) *string { return &s }("standard"),
 			},
-			VolumeName:      "test-volume",
-			CommonMountPath: "/mnt/test",
-			CommonEnv:       []corev1.EnvVar{},
+			PVCVolumeName:      "test-volume",
+			PVCVolumeMountPath: "/mnt/test",
+			CommonEnvs:         []corev1.EnvVar{},
 			SidecarContainerTemplate: corev1.Container{
 				Name:    testSidecarContainerName,
 				Command: sidecarContainerCommand,
@@ -181,9 +181,9 @@ func deleteFluentPVCBinding(ctx context.Context, c client.Client, b *fluentpvcv1
 
 var _ = Describe("pod_controller", func() {
 	BeforeEach(func() {
-		Eventually(func() error { return deleteFluentPVC(ctx, k8sClient, testFluentPVCNameDefault)}, 10).Should(Succeed())
-		Eventually(func() error { return deleteFluentPVC(ctx, k8sClient, testFluentPVCNameDeletePodFalse)}, 10).Should(Succeed())
-		Eventually(func() error { return deleteFluentPVC(ctx, k8sClient, testFluentPVCNameSidecarFailed)}, 10).Should(Succeed())
+		Eventually(func() error { return deleteFluentPVC(ctx, k8sClient, testFluentPVCNameDefault) }, 10).Should(Succeed())
+		Eventually(func() error { return deleteFluentPVC(ctx, k8sClient, testFluentPVCNameDeletePodFalse) }, 10).Should(Succeed())
+		Eventually(func() error { return deleteFluentPVC(ctx, k8sClient, testFluentPVCNameSidecarFailed) }, 10).Should(Succeed())
 		{
 			err := k8sClient.Create(ctx, generateFluentPVCForTest(testFluentPVCNameDefault, testSidecarContainerName, true, []string{"sh", "-c", "sleep 5"}))
 			Expect(err).NotTo(HaveOccurred())
@@ -210,9 +210,9 @@ var _ = Describe("pod_controller", func() {
 			}
 		}
 		// Clean up the FluentPVC.
-		Eventually(func() error { return deleteFluentPVC(ctx, k8sClient, testFluentPVCNameDefault)}, 10).Should(Succeed())
-		Eventually(func() error { return deleteFluentPVC(ctx, k8sClient, testFluentPVCNameDeletePodFalse)}, 10).Should(Succeed())
-		Eventually(func() error { return deleteFluentPVC(ctx, k8sClient, testFluentPVCNameSidecarFailed)}, 10).Should(Succeed())
+		Eventually(func() error { return deleteFluentPVC(ctx, k8sClient, testFluentPVCNameDefault) }, 10).Should(Succeed())
+		Eventually(func() error { return deleteFluentPVC(ctx, k8sClient, testFluentPVCNameDeletePodFalse) }, 10).Should(Succeed())
+		Eventually(func() error { return deleteFluentPVC(ctx, k8sClient, testFluentPVCNameSidecarFailed) }, 10).Should(Succeed())
 	})
 	Context("An applied pod is not a target", func() {
 		BeforeEach(func() {
