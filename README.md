@@ -7,7 +7,7 @@ fluent-pvc-operator is a [Kubernetes Operator](https://kubernetes.io/docs/concep
 The issues we want to solve with this Operator are as follows:
 
 - Provide a way to protect the data in a Pod from sudden death of a Node by persisting the data to a PersistentVolume.
-- Separate the exit process from the Lifecycle of the Pod, which has a Filesystem-dependent exit process.
+- Enable to offload filesystem-dependent Pod termination operations to other Pods.
 - Make PVC available for Pods generated from Templates such as Deployment and DaemonSet.
 
 ## Features
