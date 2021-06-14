@@ -119,27 +119,20 @@ var _ = Describe("pvc_controller", func() {
 
 			if err := k8sClient.Delete(ctx, pod, &client.DeleteOptions{
 				GracePeriodSeconds: pointer.Int64Ptr(0),
-			}); err != nil {
-				if !apierrors.IsNotFound(err) {
-					Expect(err).NotTo(HaveOccurred())
-				}
+			}); client.IgnoreNotFound(err) != nil {
+				Expect(err).NotTo(HaveOccurred())
 			}
 
 			Eventually(func() error {
 				pvc := &corev1.PersistentVolumeClaim{}
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, pvc)
-				if err != nil {
-					if !apierrors.IsNotFound(err) {
-						return err
-					}
-				}
-				if pvc.Status.Phase == corev1.ClaimBound {
-					return errors.New("PVC is still bound.")
+				if err == nil || !apierrors.IsNotFound(err) {
+					return errors.New("PVC is still exist.")
 				}
 				return nil
 			}, 30).Should(Succeed())
 		})
-		It("should have the same name as the binding and the inalizer job", func() {
+		It("should create the finalizer job which has the same name as the fluentpvcbinding", func() {
 			ctx := context.Background()
 			pod := &corev1.Pod{}
 			if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, pod); err != nil {
@@ -186,10 +179,8 @@ var _ = Describe("pvc_controller", func() {
 
 			if err := k8sClient.Delete(ctx, pod, &client.DeleteOptions{
 				GracePeriodSeconds: pointer.Int64Ptr(0),
-			}); err != nil {
-				if !apierrors.IsNotFound(err) {
-					Expect(err).NotTo(HaveOccurred())
-				}
+			}); client.IgnoreNotFound(err) != nil {
+				Expect(err).ShouldNot(HaveOccurred())
 			}
 
 			Eventually(func() error {
@@ -214,7 +205,7 @@ var _ = Describe("pvc_controller", func() {
 				return nil
 			}, 30).Should(Succeed())
 		})
-		It("should finalize the the pvc after the finalizer job is complete", func() {
+		It("should finalize the pvc after the finalizer job is completed", func() {
 			ctx := context.Background()
 			pod := &corev1.Pod{}
 			if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, pod); err != nil {
@@ -270,8 +261,11 @@ var _ = Describe("pvc_controller", func() {
 			Eventually(func() error {
 				pod := &corev1.Pod{}
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, pod)
-				if err == nil || !apierrors.IsNotFound(err) {
+				if err == nil {
 					return errors.New("Pod is still exist.")
+				}
+				if !apierrors.IsNotFound(err) {
+					return err
 				}
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
 				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, b); err != nil {
@@ -281,7 +275,7 @@ var _ = Describe("pvc_controller", func() {
 					return errors.New("FluentPVCBinding is not OutOfUse condition.")
 				}
 				return nil
-			}, 30).Should(Succeed())
+			}, 60).Should(Succeed())
 
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
@@ -322,19 +316,14 @@ var _ = Describe("pvc_controller", func() {
 			}, 30).Should(Succeed())
 
 			Eventually(func() error {
-				b := &fluentpvcv1alpha1.FluentPVCBinding{}
-				{
-					err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, b)
-					if err == nil || !apierrors.IsNotFound(err) {
-						return errors.New("FluentPVCBinding is still exist.")
-					}
-				}
-
 				pvc := &corev1.PersistentVolumeClaim{}
 				{
 					err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, pvc)
-					if err == nil || !apierrors.IsNotFound(err) {
+					if err == nil {
 						return errors.New("PVC is still exist.")
+					}
+					if !apierrors.IsNotFound(err) {
+						return err
 					}
 				}
 				return nil
@@ -623,7 +612,7 @@ var _ = Describe("pvc_controller", func() {
 					return err
 				}
 				return nil
-			}, 30).Should(Succeed())
+			}, 60).Should(Succeed())
 
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
