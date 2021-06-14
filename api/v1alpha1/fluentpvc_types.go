@@ -24,7 +24,7 @@ type FluentPVCSpec struct {
 	// Must not contain ':'
 	//+kubebuilder:validation:Required
 	PVCVolumeMountPath string `json:"pvcVolumeMountPath"`
-	// Sidecare containers templates that must include a fluentd definition.
+	// Sidecare containers template.
 	//+kubebuilder:validation:Required
 	SidecarContainerTemplate corev1.Container `json:"sidecarContainerTemplate"`
 	// Common environment variables to inject into all containers.
