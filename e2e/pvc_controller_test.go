@@ -85,8 +85,9 @@ var _ = Describe("pvc_controller", func() {
 			Eventually(func() error {
 				{
 					pod = &corev1.Pod{}
-					err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, pod)
-					Expect(err).Should(Succeed())
+					if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, pod); err != nil {
+						return err
+					}
 					if pod.Status.Phase != corev1.PodRunning {
 						return errors.New("Pod is not running.")
 					}
@@ -98,8 +99,9 @@ var _ = Describe("pvc_controller", func() {
 				}
 				{
 					pvc := &corev1.PersistentVolumeClaim{}
-					err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: b.Items[0].Name}, pvc)
-					Expect(err).Should(Succeed())
+					if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: b.Items[0].Name}, pvc); err != nil {
+						return err
+					}
 					if pvc.Status.Phase != corev1.ClaimBound {
 						return errors.New("PVC is not bound.")
 					}
@@ -120,7 +122,7 @@ var _ = Describe("pvc_controller", func() {
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: b.Items[0].Name}, pvc)
 				if err != nil {
 					if !apierrors.IsNotFound(err) {
-						Expect(err).NotTo(HaveOccurred())
+						return err
 					}
 				}
 				if pvc.Status.Phase == corev1.ClaimBound {
@@ -145,7 +147,7 @@ var _ = Describe("pvc_controller", func() {
 			Eventually(func() error {
 				pod = &corev1.Pod{}
 				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, pod); err != nil {
-					Expect(err).Should(Succeed())
+					return err
 				}
 
 				if pod.Status.Phase != corev1.PodRunning {
@@ -159,7 +161,7 @@ var _ = Describe("pvc_controller", func() {
 
 				pvc := &corev1.PersistentVolumeClaim{}
 				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, pvc); err != nil {
-					Expect(err).Should(Succeed())
+					return err
 				}
 				if pvc.Status.Phase != corev1.ClaimBound {
 					return errors.New("PVC is not bound.")
@@ -183,7 +185,7 @@ var _ = Describe("pvc_controller", func() {
 				}
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
 				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, b); err != nil {
-					Expect(err).Should(Succeed())
+					return err
 				}
 				if !b.IsConditionOutOfUse() {
 					return errors.New("FluentPVCBinding is not OutOfUse condition.")
@@ -197,7 +199,7 @@ var _ = Describe("pvc_controller", func() {
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
 				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, b); err != nil {
-					Expect(err).Should(Succeed())
+					return err
 				}
 				if !b.IsConditionFinalizerJobApplied() {
 					return errors.New("FluentPVCBinding is not FinalizerJobApplied condition.")
@@ -208,7 +210,7 @@ var _ = Describe("pvc_controller", func() {
 
 				pvc := &corev1.PersistentVolumeClaim{}
 				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: b.Spec.PVC.Name}, pvc); err != nil {
-					Expect(err).Should(Succeed())
+					return err
 				}
 				if !controllerutil.ContainsFinalizer(pvc, constants.PVCFinalizerName) {
 					return errors.New("PVC does not have finalizer.")
@@ -216,7 +218,7 @@ var _ = Describe("pvc_controller", func() {
 
 				jobs := &batchv1.JobList{}
 				if err := k8sClient.List(ctx, jobs); err != nil {
-					Expect(err).Should(Succeed())
+					return err
 				}
 				if len(jobs.Items) != 1 {
 					return errors.New("Job not found or Multiple Job found.")
@@ -230,7 +232,7 @@ var _ = Describe("pvc_controller", func() {
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
 				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, b); err != nil {
-					Expect(err).Should(Succeed())
+					return err
 				}
 				if !b.IsConditionFinalizerJobSucceeded() {
 					return errors.New("FluentPVCBinding is not FinalizerJobSucceeded condition.")
@@ -238,7 +240,7 @@ var _ = Describe("pvc_controller", func() {
 
 				pvc := &corev1.PersistentVolumeClaim{}
 				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, pvc); err != nil {
-					Expect(err).Should(Succeed())
+					return err
 				}
 				return nil
 			}, 30).Should(Succeed())
@@ -277,7 +279,7 @@ var _ = Describe("pvc_controller", func() {
 			Eventually(func() error {
 				pod = &corev1.Pod{}
 				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, pod); err != nil {
-					Expect(err).Should(Succeed())
+					return err
 				}
 				if pod.Status.Phase != corev1.PodRunning {
 					return errors.New("Pod is not running.")
@@ -290,7 +292,7 @@ var _ = Describe("pvc_controller", func() {
 
 				pvc := &corev1.PersistentVolumeClaim{}
 				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: b.Items[0].Name}, pvc); err != nil {
-					Expect(err).Should(Succeed())
+					return err
 				}
 				if pvc.Status.Phase != corev1.ClaimBound {
 					return errors.New("PVC is not bound.")
@@ -301,7 +303,7 @@ var _ = Describe("pvc_controller", func() {
 			Consistently(func() error {
 				pvc := &corev1.PersistentVolumeClaim{}
 				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: b.Items[0].Name}, pvc); err != nil {
-					Expect(err).Should(Succeed())
+					return err
 				}
 				if pvc.Status.Phase != corev1.ClaimBound {
 					return errors.New("PVC is not bound.")
@@ -341,8 +343,9 @@ var _ = Describe("pvc_controller", func() {
 			Eventually(func() error {
 				{
 					pod := &corev1.Pod{}
-					err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, pod)
-					Expect(err).Should(Succeed())
+					if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, pod); err != nil {
+						return err
+					}
 					if pod.Status.Phase != corev1.PodRunning {
 						return errors.New("Pod is not running.")
 					}
@@ -354,14 +357,16 @@ var _ = Describe("pvc_controller", func() {
 				}
 				{
 					pvc := &corev1.PersistentVolumeClaim{}
-					err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, pvc)
-					Expect(err).Should(Succeed())
+					if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, pvc); err != nil {
+						return err
+					}
 					if pvc.Status.Phase != corev1.ClaimBound {
 						return errors.New("PVC is not bound.")
 					}
 					pvc.Status.Phase = corev1.ClaimLost
-					err = k8sClient.Update(ctx, pvc)
-					Expect(err).Should(Succeed())
+					if err := k8sClient.Update(ctx, pvc); err != nil {
+						return err
+					}
 				}
 				return nil
 			}, 30).Should(Succeed())
@@ -399,7 +404,7 @@ var _ = Describe("pvc_controller", func() {
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
 				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, b); err != nil {
-					Expect(err).Should(Succeed())
+					return err
 				}
 				if !b.IsConditionUnknown() {
 					return errors.New("FluentPVCBinding is not Unknown condition.")
@@ -411,7 +416,7 @@ var _ = Describe("pvc_controller", func() {
 				pvc := &corev1.PersistentVolumeClaim{}
 				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, pvc); err != nil {
 					if !apierrors.IsNotFound(err) {
-						Expect(err).NotTo(HaveOccurred())
+						return err
 					}
 				}
 				return nil
@@ -453,7 +458,7 @@ var _ = Describe("pvc_controller", func() {
 			Eventually(func() error {
 				pod = &corev1.Pod{}
 				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, pod); err != nil {
-					Expect(err).Should(Succeed())
+					return err
 				}
 				if pod.Status.Phase != corev1.PodRunning {
 					return errors.New("Pod is not running.")
@@ -466,7 +471,7 @@ var _ = Describe("pvc_controller", func() {
 
 				pvc := &corev1.PersistentVolumeClaim{}
 				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, pvc); err != nil {
-					Expect(err).Should(Succeed())
+					return err
 				}
 				if pvc.Status.Phase != corev1.ClaimBound {
 					return errors.New("PVC is not bound.")
@@ -485,7 +490,7 @@ var _ = Describe("pvc_controller", func() {
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
 				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, b); err != nil {
-					Expect(err).Should(Succeed())
+					return err
 				}
 				if !b.IsConditionFinalizerJobApplied() {
 					return errors.New("FluentPVCBinding is not FinalizerJobApplied condition.")
@@ -493,7 +498,7 @@ var _ = Describe("pvc_controller", func() {
 
 				pvc := &corev1.PersistentVolumeClaim{}
 				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: b.Spec.PVC.Name}, pvc); err != nil {
-					Expect(err).Should(Succeed())
+					return err
 				}
 				return nil
 			}, 30).Should(Succeed())
@@ -501,7 +506,7 @@ var _ = Describe("pvc_controller", func() {
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
 				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, b); err != nil {
-					Expect(err).Should(Succeed())
+					return err
 				}
 				if !b.IsConditionFinalizerJobFailed() {
 					return errors.New("FluentPVCBinding is not FinalizerJobFailed condition.")
@@ -509,12 +514,12 @@ var _ = Describe("pvc_controller", func() {
 
 				pvc := &corev1.PersistentVolumeClaim{}
 				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: b.Spec.PVC.Name}, pvc); err != nil {
-					Expect(err).Should(Succeed())
+					return err
 				}
 
 				jobs := &batchv1.JobList{}
 				if err := k8sClient.List(ctx, jobs); err != nil {
-					Expect(err).Should(Succeed())
+					return err
 				}
 				if len(jobs.Items) != 1 {
 					return errors.New("Job not found or Multiple Job found.")
@@ -530,7 +535,7 @@ var _ = Describe("pvc_controller", func() {
 			Consistently(func() error {
 				pvc := &corev1.PersistentVolumeClaim{}
 				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, pvc); err != nil {
-					Expect(err).Should(Succeed())
+					return err
 				}
 				if pvc.Status.Phase != corev1.ClaimBound {
 					return errors.New("PVC is not bound.")
