@@ -10,22 +10,22 @@ import (
 // FluentPVCSpec defines the desired state of FluentPVC
 type FluentPVCSpec struct {
 	// PVC spec template to inject into pod manifests.
-	//+kubebuiler:validation:Required
+	//+kubebuilder:validation:Required
 	PVCSpecTemplate corev1.PersistentVolumeClaimSpec `json:"pvcSpecTemplate"`
 	// Job template to finalize PVCs.
-	//+kubebuiler:validation:Required
+	//+kubebuilder:validation:Required
 	PVCFinalizerJobSpecTemplate batchv1.JobSpec `json:"pvcFinalizerJobSpecTemplate"`
 	// Name of the Volume to mount the PVC.
 	// Must be a DNS_LABEL and unique within the pod
 	// ref. https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-	//+kubebuiler:validation:Required
+	//+kubebuilder:validation:Required
 	PVCVolumeName string `json:"pvcVolumeName"`
 	// Path to mount the PVC.
 	// Must not contain ':'
-	//+kubebuiler:validation:Required
+	//+kubebuilder:validation:Required
 	PVCVolumeMountPath string `json:"pvcVolumeMountPath"`
-	// Sidecare containers templates that must include a fluentd definition.
-	//+kubebuiler:validation:Required
+	// Sidecare containers template.
+	//+kubebuilder:validation:Required
 	SidecarContainerTemplate corev1.Container `json:"sidecarContainerTemplate"`
 	// Common environment variables to inject into all containers.
 	//+optional
@@ -37,7 +37,7 @@ type FluentPVCSpec struct {
 	//+optional
 	CommonVolumeMounts []corev1.VolumeMount `json:"commonVolumeMounts,omitempty"`
 	// Delete the pod if the sidecar container termination is detected.
-	//+kubebuiler:validation:Required
+	//+kubebuilder:validation:Required
 	//+kubebuilder:default:true
 	DeletePodIfSidecarContainerTerminationDetected bool `json:"deletePodIfSidecarContainerTerminationDetected,omitempty"`
 }
@@ -79,22 +79,22 @@ type FluentPVCList struct {
 
 type FluentPVCBindingSpec struct {
 	// FluentPVC Name to bind.
-	//+kubebuiler:validation:Required
+	//+kubebuilder:validation:Required
 	FluentPVC ObjectIdentity `json:"fluentPVC"`
 	// PVC Name to bind.
-	//+kubebuiler:validation:Required
+	//+kubebuilder:validation:Required
 	PVC ObjectIdentity `json:"pvc"`
 	// Pod Name to bind.
-	//+kubebuiler:validation:Required
+	//+kubebuilder:validation:Required
 	Pod ObjectIdentity `json:"pod"`
 }
 
 type ObjectIdentity struct {
 	// Object Name
-	//+kubebuiler:validation:Required
+	//+kubebuilder:validation:Required
 	Name string `json:"name"`
 	// Object UID
-	//+kubebuiler:validation:Required
+	//+kubebuilder:validation:Required
 	UID types.UID `json:"uid"`
 }
 
