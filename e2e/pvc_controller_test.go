@@ -205,9 +205,6 @@ var _ = Describe("pvc_controller", func() {
 				if !b.IsConditionOutOfUse() {
 					return errors.New("FluentPVCBinding is not OutOfUse condition.")
 				}
-				if b.IsConditionFinalizerJobApplied() {
-					return errors.New("FluentPVCBinding is already FinalizerJobApplied condition.")
-				}
 				return nil
 			}, 30).Should(Succeed())
 
@@ -251,11 +248,6 @@ var _ = Describe("pvc_controller", func() {
 				}
 				if !b.IsConditionFinalizerJobSucceeded() {
 					return errors.New("FluentPVCBinding is not FinalizerJobSucceeded condition.")
-				}
-
-				pvc := &corev1.PersistentVolumeClaim{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, pvc); err != nil {
-					return err
 				}
 				return nil
 			}, 30).Should(Succeed())
