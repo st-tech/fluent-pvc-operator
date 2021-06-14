@@ -93,28 +93,33 @@ var _ = Describe("pvc_controller", func() {
 			bindingAndPVCName := b.Name
 
 			Eventually(func() error {
-				{
-					pod = &corev1.Pod{}
-					if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, pod); err != nil {
-						return err
-					}
-					if pod.Status.Phase != corev1.PodRunning {
-						return errors.New("Pod is not running.")
-					}
-					for _, stat := range pod.Status.ContainerStatuses {
-						if !stat.Ready || stat.State.Running == nil {
-							return errors.New("Pod containers are not ready.")
-						}
+				pod = &corev1.Pod{}
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, pod); err != nil {
+					return err
+				}
+				if pod.Status.Phase != corev1.PodRunning {
+					return errors.New("Pod is not running.")
+				}
+				for _, stat := range pod.Status.ContainerStatuses {
+					if !stat.Ready || stat.State.Running == nil {
+						return errors.New("Pod containers are not ready.")
 					}
 				}
-				{
-					pvc := &corev1.PersistentVolumeClaim{}
-					if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, pvc); err != nil {
-						return err
-					}
-					if pvc.Status.Phase != corev1.ClaimBound {
-						return errors.New("PVC is not bound.")
-					}
+
+				pvc := &corev1.PersistentVolumeClaim{}
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, pvc); err != nil {
+					return err
+				}
+				if pvc.Status.Phase != corev1.ClaimBound {
+					return errors.New("PVC is not bound.")
+				}
+
+				b := &fluentpvcv1alpha1.FluentPVCBinding{}
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, b); err != nil {
+					return err
+				}
+				if !b.IsConditionReady() {
+					return errors.New("FluentPVCBinding does not have the Ready condition.")
 				}
 				return nil
 			}, 30).Should(Succeed())
@@ -159,7 +164,6 @@ var _ = Describe("pvc_controller", func() {
 				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, pod); err != nil {
 					return err
 				}
-
 				if pod.Status.Phase != corev1.PodRunning {
 					return errors.New("Pod is not running.")
 				}
@@ -256,6 +260,14 @@ var _ = Describe("pvc_controller", func() {
 				}
 				if pvc.Status.Phase != corev1.ClaimBound {
 					return errors.New("PVC is not bound.")
+				}
+
+				b := &fluentpvcv1alpha1.FluentPVCBinding{}
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, b); err != nil {
+					return err
+				}
+				if !b.IsConditionReady() {
+					return errors.New("FluentPVCBinding does not have the Ready condition.")
 				}
 				return nil
 			}, 30).Should(Succeed())
@@ -402,6 +414,14 @@ var _ = Describe("pvc_controller", func() {
 				if pvc.Status.Phase != corev1.ClaimBound {
 					return errors.New("PVC is not bound.")
 				}
+
+				b := &fluentpvcv1alpha1.FluentPVCBinding{}
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, b); err != nil {
+					return err
+				}
+				if !b.IsConditionReady() {
+					return errors.New("FluentPVCBinding does not have the Ready condition.")
+				}
 				return nil
 			}, 30).Should(Succeed())
 
@@ -459,32 +479,37 @@ var _ = Describe("pvc_controller", func() {
 			bindingAndPVCName := b.Name
 
 			Eventually(func() error {
-				{
-					pod := &corev1.Pod{}
-					if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, pod); err != nil {
-						return err
-					}
-					if pod.Status.Phase != corev1.PodRunning {
-						return errors.New("Pod is not running.")
-					}
-					for _, stat := range pod.Status.ContainerStatuses {
-						if !stat.Ready || stat.State.Running == nil {
-							return errors.New("Pod containers are not ready.")
-						}
+				pod := &corev1.Pod{}
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, pod); err != nil {
+					return err
+				}
+				if pod.Status.Phase != corev1.PodRunning {
+					return errors.New("Pod is not running.")
+				}
+				for _, stat := range pod.Status.ContainerStatuses {
+					if !stat.Ready || stat.State.Running == nil {
+						return errors.New("Pod containers are not ready.")
 					}
 				}
-				{
-					pvc := &corev1.PersistentVolumeClaim{}
-					if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, pvc); err != nil {
-						return err
-					}
-					if pvc.Status.Phase != corev1.ClaimBound {
-						return errors.New("PVC is not bound.")
-					}
-					pvc.Status.Phase = corev1.ClaimLost
-					if err := k8sClient.Update(ctx, pvc); err != nil {
-						return err
-					}
+
+				pvc := &corev1.PersistentVolumeClaim{}
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, pvc); err != nil {
+					return err
+				}
+				if pvc.Status.Phase != corev1.ClaimBound {
+					return errors.New("PVC is not bound.")
+				}
+				pvc.Status.Phase = corev1.ClaimLost
+				if err := k8sClient.Update(ctx, pvc); err != nil {
+					return err
+				}
+
+				b := &fluentpvcv1alpha1.FluentPVCBinding{}
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, b); err != nil {
+					return err
+				}
+				if !b.IsConditionReady() {
+					return errors.New("FluentPVCBinding does not have the Ready condition.")
 				}
 				return nil
 			}, 30).Should(Succeed())
