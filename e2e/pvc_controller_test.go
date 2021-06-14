@@ -29,10 +29,10 @@ var _ = Describe("pvc_controller", func() {
 		Eventually(func() error { return deleteFluentPVC(ctx, k8sClient, testFluentPVCNameFinalizerJobFailed) }, 10).Should(Succeed())
 
 		if err := k8sClient.Create(ctx, generateFluentPVCForTest(testFluentPVCNameSidecarSleepLong, testSidecarContainerName, true, []string{"sh", "-c", "sleep 100"}, []string{"sh", "-c", "sleep 10"})); err != nil {
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).ShouldNot(HaveOccurred())
 		}
 		if err := k8sClient.Create(ctx, generateFluentPVCForTest(testFluentPVCNameFinalizerJobFailed, testSidecarContainerName, true, []string{"sh", "-c", "sleep 100"}, []string{"sh", "-c", "sleep 10; exit 1"})); err != nil {
-			Expect(err).NotTo(HaveOccurred())
+			Expect(err).ShouldNot(HaveOccurred())
 		}
 	})
 	AfterEach(func() {
@@ -43,7 +43,7 @@ var _ = Describe("pvc_controller", func() {
 			GracePeriodSeconds: pointer.Int64Ptr(0),
 		}); err != nil {
 			if !apierrors.IsNotFound(err) {
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).ShouldNot(HaveOccurred())
 			}
 		}
 
@@ -55,7 +55,7 @@ var _ = Describe("pvc_controller", func() {
 			ctx := context.Background()
 			fpvc := &fluentpvcv1alpha1.FluentPVC{}
 			if err := k8sClient.Get(ctx, client.ObjectKey{Name: testFluentPVCNameSidecarSleepLong}, fpvc); err != nil {
-				Expect(err).Should(Succeed())
+				Expect(err).ShouldNot(HaveOccurred())
 			}
 
 			pod := generateTestPodManifest(testPodConfig{
@@ -66,7 +66,7 @@ var _ = Describe("pvc_controller", func() {
 			})
 			{
 				err := k8sClient.Create(ctx, pod)
-				Expect(err).Should(Succeed())
+				Expect(err).ShouldNot(HaveOccurred())
 			}
 		})
 		It("should finalize and remove the pvc", func() {
@@ -74,13 +74,13 @@ var _ = Describe("pvc_controller", func() {
 			pod := &corev1.Pod{}
 			{
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, pod)
-				Expect(err).Should(Succeed())
+				Expect(err).ShouldNot(HaveOccurred())
 			}
 
 			bList := &fluentpvcv1alpha1.FluentPVCBindingList{}
 			var b *fluentpvcv1alpha1.FluentPVCBinding
 			if err := k8sClient.List(ctx, bList); err != nil {
-				Expect(err).Should(Succeed())
+				Expect(err).ShouldNot(HaveOccurred())
 			}
 			for _, b_ := range bList.Items {
 				if b_.Spec.Pod.Name == pod.Name {
@@ -120,7 +120,7 @@ var _ = Describe("pvc_controller", func() {
 			if err := k8sClient.Delete(ctx, pod, &client.DeleteOptions{
 				GracePeriodSeconds: pointer.Int64Ptr(0),
 			}); client.IgnoreNotFound(err) != nil {
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).ShouldNot(HaveOccurred())
 			}
 
 			Eventually(func() error {
@@ -136,13 +136,13 @@ var _ = Describe("pvc_controller", func() {
 			ctx := context.Background()
 			pod := &corev1.Pod{}
 			if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, pod); err != nil {
-				Expect(err).Should(Succeed())
+				Expect(err).ShouldNot(HaveOccurred())
 			}
 
 			bList := &fluentpvcv1alpha1.FluentPVCBindingList{}
 			var b *fluentpvcv1alpha1.FluentPVCBinding
 			if err := k8sClient.List(ctx, bList); err != nil {
-				Expect(err).Should(Succeed())
+				Expect(err).ShouldNot(HaveOccurred())
 			}
 			for _, b_ := range bList.Items {
 				if b_.Spec.Pod.Name == pod.Name {
@@ -209,13 +209,13 @@ var _ = Describe("pvc_controller", func() {
 			ctx := context.Background()
 			pod := &corev1.Pod{}
 			if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, pod); err != nil {
-				Expect(err).Should(Succeed())
+				Expect(err).ShouldNot(HaveOccurred())
 			}
 
 			bList := &fluentpvcv1alpha1.FluentPVCBindingList{}
 			var b *fluentpvcv1alpha1.FluentPVCBinding
 			if err := k8sClient.List(ctx, bList); err != nil {
-				Expect(err).Should(Succeed())
+				Expect(err).ShouldNot(HaveOccurred())
 			}
 			for _, b_ := range bList.Items {
 				if b_.Spec.Pod.Name == pod.Name {
@@ -254,7 +254,7 @@ var _ = Describe("pvc_controller", func() {
 				GracePeriodSeconds: pointer.Int64Ptr(0),
 			}); err != nil {
 				if !apierrors.IsNotFound(err) {
-					Expect(err).NotTo(HaveOccurred())
+					Expect(err).ShouldNot(HaveOccurred())
 				}
 			}
 
@@ -335,7 +335,7 @@ var _ = Describe("pvc_controller", func() {
 			ctx := context.Background()
 			fpvc := &fluentpvcv1alpha1.FluentPVC{}
 			if err := k8sClient.Get(ctx, client.ObjectKey{Name: testFluentPVCNameSidecarSleepLong}, fpvc); err != nil {
-				Expect(err).Should(Succeed())
+				Expect(err).ShouldNot(HaveOccurred())
 			}
 
 			pod := generateTestPodManifest(testPodConfig{
@@ -346,20 +346,20 @@ var _ = Describe("pvc_controller", func() {
 			})
 			{
 				err := k8sClient.Create(ctx, pod)
-				Expect(err).Should(Succeed())
+				Expect(err).ShouldNot(HaveOccurred())
 			}
 		})
 		It("should not do anything, that means the pvc is continue to be exist", func() {
 			ctx := context.Background()
 			pod := &corev1.Pod{}
 			if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, pod); err != nil {
-				Expect(err).Should(Succeed())
+				Expect(err).ShouldNot(HaveOccurred())
 			}
 
 			bList := &fluentpvcv1alpha1.FluentPVCBindingList{}
 			var b *fluentpvcv1alpha1.FluentPVCBinding
 			if err := k8sClient.List(ctx, bList); err != nil {
-				Expect(err).Should(Succeed())
+				Expect(err).ShouldNot(HaveOccurred())
 			}
 			for _, b_ := range bList.Items {
 				if b_.Spec.Pod.Name == pod.Name {
@@ -410,7 +410,7 @@ var _ = Describe("pvc_controller", func() {
 			ctx := context.Background()
 			fpvc := &fluentpvcv1alpha1.FluentPVC{}
 			if err := k8sClient.Get(ctx, client.ObjectKey{Name: testFluentPVCNameSidecarSleepLong}, fpvc); err != nil {
-				Expect(err).Should(Succeed())
+				Expect(err).ShouldNot(HaveOccurred())
 			}
 
 			pod := generateTestPodManifest(testPodConfig{
@@ -421,20 +421,20 @@ var _ = Describe("pvc_controller", func() {
 			})
 			{
 				err := k8sClient.Create(ctx, pod)
-				Expect(err).Should(Succeed())
+				Expect(err).ShouldNot(HaveOccurred())
 			}
 		})
 		It("should not do anything, that means the pvc is continue to be exist", func() {
 			ctx := context.Background()
 			pod := &corev1.Pod{}
 			if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, pod); err != nil {
-				Expect(err).Should(Succeed())
+				Expect(err).ShouldNot(HaveOccurred())
 			}
 
 			bList := &fluentpvcv1alpha1.FluentPVCBindingList{}
 			var b *fluentpvcv1alpha1.FluentPVCBinding
 			if err := k8sClient.List(ctx, bList); err != nil {
-				Expect(err).Should(Succeed())
+				Expect(err).ShouldNot(HaveOccurred())
 			}
 			for _, b_ := range bList.Items {
 				if b_.Spec.Pod.Name == pod.Name {
@@ -478,18 +478,18 @@ var _ = Describe("pvc_controller", func() {
 			{
 				pvc := &corev1.PersistentVolumeClaim{}
 				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, pvc); err != nil {
-					Expect(err).Should(Succeed())
+					Expect(err).ShouldNot(HaveOccurred())
 				}
 				pv := &corev1.PersistentVolume{}
 				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: pvc.Spec.VolumeName}, pv); err != nil {
-					Expect(err).Should(Succeed())
+					Expect(err).ShouldNot(HaveOccurred())
 				}
 				controllerutil.RemoveFinalizer(pv, "kubernetes.io/pv-protection")
 				if err := k8sClient.Update(ctx, pv); err != nil {
-					Expect(err).Should(Succeed())
+					Expect(err).ShouldNot(HaveOccurred())
 				}
 				if err := k8sClient.Delete(ctx, pv); err != nil {
-					Expect(err).Should(Succeed())
+					Expect(err).ShouldNot(HaveOccurred())
 				}
 			}
 			{
@@ -500,7 +500,7 @@ var _ = Describe("pvc_controller", func() {
 					GracePeriodSeconds: pointer.Int64Ptr(0),
 				}); err != nil {
 					if !apierrors.IsNotFound(err) {
-						Expect(err).NotTo(HaveOccurred())
+						Expect(err).ShouldNot(HaveOccurred())
 					}
 				}
 			}
@@ -532,7 +532,7 @@ var _ = Describe("pvc_controller", func() {
 			ctx := context.Background()
 			fpvc := &fluentpvcv1alpha1.FluentPVC{}
 			if err := k8sClient.Get(ctx, client.ObjectKey{Name: testFluentPVCNameFinalizerJobFailed}, fpvc); err != nil {
-				Expect(err).Should(Succeed())
+				Expect(err).ShouldNot(HaveOccurred())
 			}
 
 			pod := generateTestPodManifest(testPodConfig{
@@ -543,20 +543,20 @@ var _ = Describe("pvc_controller", func() {
 			})
 			{
 				err := k8sClient.Create(ctx, pod)
-				Expect(err).Should(Succeed())
+				Expect(err).ShouldNot(HaveOccurred())
 			}
 		})
 		It("should not finalize the pvc, that means the pvc is continue to be exist", func() {
 			ctx := context.Background()
 			pod := &corev1.Pod{}
 			if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, pod); err != nil {
-				Expect(err).Should(Succeed())
+				Expect(err).ShouldNot(HaveOccurred())
 			}
 
 			bList := &fluentpvcv1alpha1.FluentPVCBindingList{}
 			var b *fluentpvcv1alpha1.FluentPVCBinding
 			if err := k8sClient.List(ctx, bList); err != nil {
-				Expect(err).Should(Succeed())
+				Expect(err).ShouldNot(HaveOccurred())
 			}
 			for _, b_ := range bList.Items {
 				if b_.Spec.Pod.Name == pod.Name {
@@ -594,7 +594,7 @@ var _ = Describe("pvc_controller", func() {
 				GracePeriodSeconds: pointer.Int64Ptr(0),
 			}); err != nil {
 				if !apierrors.IsNotFound(err) {
-					Expect(err).NotTo(HaveOccurred())
+					Expect(err).ShouldNot(HaveOccurred())
 				}
 			}
 
