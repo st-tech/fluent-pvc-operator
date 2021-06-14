@@ -50,7 +50,7 @@ var _ = Describe("pvc_controller", func() {
 		Eventually(func() error { return deleteFluentPVC(ctx, k8sClient, testFluentPVCNameSidecarSleepLong) }, 10).Should(Succeed())
 		Eventually(func() error { return deleteFluentPVC(ctx, k8sClient, testFluentPVCNameFinalizerJobFailed) }, 10).Should(Succeed())
 	})
-	Context("pod main container is succeeded or running", func() {
+	Context("the main container of the pod is succeeded", func() {
 		BeforeEach(func() {
 			ctx := context.Background()
 			fpvc := &fluentpvcv1alpha1.FluentPVC{}
@@ -69,7 +69,7 @@ var _ = Describe("pvc_controller", func() {
 				Expect(err).Should(Succeed())
 			}
 		})
-		It("should finalize and delete pvc", func() {
+		It("should finalize and remove the pvc", func() {
 			ctx := context.Background()
 			pod := &corev1.Pod{}
 			{
@@ -77,13 +77,13 @@ var _ = Describe("pvc_controller", func() {
 				Expect(err).Should(Succeed())
 			}
 
-			var bList *fluentpvcv1alpha1.FluentPVCBindingList
+			bList := &fluentpvcv1alpha1.FluentPVCBindingList{}
 			var b *fluentpvcv1alpha1.FluentPVCBinding
 			if err := k8sClient.List(ctx, bList); err != nil {
 				Expect(err).Should(Succeed())
 			}
 			for _, b_ := range bList.Items {
-				if b.Spec.Pod.Name == pod.Name {
+				if b_.Spec.Pod.Name == pod.Name {
 					b = b_.DeepCopy()
 				}
 			}
@@ -101,7 +101,7 @@ var _ = Describe("pvc_controller", func() {
 					}
 					for _, stat := range pod.Status.ContainerStatuses {
 						if !stat.Ready || stat.State.Running == nil {
-							return errors.New("Pod ContainerStatuses are not ready.")
+							return errors.New("Pod containers are not ready.")
 						}
 					}
 				}
@@ -139,20 +139,20 @@ var _ = Describe("pvc_controller", func() {
 				return nil
 			}, 30).Should(Succeed())
 		})
-		It("should have same name with binding and job, should wait for finalizer job completion before finalize pvc", func() {
+		It("should have the same name as the binding and the inalizer job", func() {
 			ctx := context.Background()
 			pod := &corev1.Pod{}
 			if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, pod); err != nil {
 				Expect(err).Should(Succeed())
 			}
 
-			var bList *fluentpvcv1alpha1.FluentPVCBindingList
+			bList := &fluentpvcv1alpha1.FluentPVCBindingList{}
 			var b *fluentpvcv1alpha1.FluentPVCBinding
 			if err := k8sClient.List(ctx, bList); err != nil {
 				Expect(err).Should(Succeed())
 			}
 			for _, b_ := range bList.Items {
-				if b.Spec.Pod.Name == pod.Name {
+				if b_.Spec.Pod.Name == pod.Name {
 					b = b_.DeepCopy()
 				}
 			}
@@ -170,7 +170,82 @@ var _ = Describe("pvc_controller", func() {
 				}
 				for _, stat := range pod.Status.ContainerStatuses {
 					if !stat.Ready || stat.State.Running == nil {
-						return errors.New("Pod ContainerStatuses are not ready.")
+						return errors.New("Pod containers are not ready.")
+					}
+				}
+
+				pvc := &corev1.PersistentVolumeClaim{}
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, pvc); err != nil {
+					return err
+				}
+				if pvc.Status.Phase != corev1.ClaimBound {
+					return errors.New("PVC is not bound.")
+				}
+				return nil
+			}, 30).Should(Succeed())
+
+			if err := k8sClient.Delete(ctx, pod, &client.DeleteOptions{
+				GracePeriodSeconds: pointer.Int64Ptr(0),
+			}); err != nil {
+				if !apierrors.IsNotFound(err) {
+					Expect(err).NotTo(HaveOccurred())
+				}
+			}
+
+			Eventually(func() error {
+				b := &fluentpvcv1alpha1.FluentPVCBinding{}
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, b); err != nil {
+					return err
+				}
+				if b.Name != b.Spec.PVC.Name {
+					return errors.New("FluentPVCBinding has the different name as the pvc.")
+				}
+
+				jobs := &batchv1.JobList{}
+				if err := k8sClient.List(ctx, jobs); err != nil {
+					return err
+				}
+				if len(jobs.Items) != 1 {
+					return errors.New("Job not found or multiple job found.")
+				}
+				if b.Name != jobs.Items[0].Name {
+					return errors.New("FluentPVCBinding has the different name as the finalizer job.")
+				}
+				return nil
+			}, 30).Should(Succeed())
+		})
+		It("should finalize the the pvc after the finalizer job is complete", func() {
+			ctx := context.Background()
+			pod := &corev1.Pod{}
+			if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, pod); err != nil {
+				Expect(err).Should(Succeed())
+			}
+
+			bList := &fluentpvcv1alpha1.FluentPVCBindingList{}
+			var b *fluentpvcv1alpha1.FluentPVCBinding
+			if err := k8sClient.List(ctx, bList); err != nil {
+				Expect(err).Should(Succeed())
+			}
+			for _, b_ := range bList.Items {
+				if b_.Spec.Pod.Name == pod.Name {
+					b = b_.DeepCopy()
+				}
+			}
+			Expect(b).ShouldNot(BeNil())
+			bindingAndPVCName := b.Name
+
+			Eventually(func() error {
+				pod = &corev1.Pod{}
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, pod); err != nil {
+					return err
+				}
+
+				if pod.Status.Phase != corev1.PodRunning {
+					return errors.New("Pod is not running.")
+				}
+				for _, stat := range pod.Status.ContainerStatuses {
+					if !stat.Ready || stat.State.Running == nil {
+						return errors.New("Pod containers are not ready.")
 					}
 				}
 
@@ -214,10 +289,7 @@ var _ = Describe("pvc_controller", func() {
 					return err
 				}
 				if !b.IsConditionFinalizerJobApplied() {
-					return errors.New("FluentPVCBinding is not FinalizerJobApplied condition.")
-				}
-				if b.Name != b.Spec.PVC.Name {
-					return errors.New("FluentPVCBinding has different name with PVC.")
+					return errors.New("FluentPVCBinding does not have the FinalizerJobApplied condition.")
 				}
 
 				pvc := &corev1.PersistentVolumeClaim{}
@@ -233,10 +305,7 @@ var _ = Describe("pvc_controller", func() {
 					return err
 				}
 				if len(jobs.Items) != 1 {
-					return errors.New("Job not found or Multiple Job found.")
-				}
-				if b.Name != jobs.Items[0].Name {
-					return errors.New("FluentPVCBinding has different name with Finalizer Job.")
+					return errors.New("Job not found or multiple job found.")
 				}
 				return nil
 			}, 30).Should(Succeed())
@@ -247,7 +316,7 @@ var _ = Describe("pvc_controller", func() {
 					return err
 				}
 				if !b.IsConditionFinalizerJobSucceeded() {
-					return errors.New("FluentPVCBinding is not FinalizerJobSucceeded condition.")
+					return errors.New("FluentPVCBinding does not have the FinalizerJobSucceeded condition.")
 				}
 				return nil
 			}, 30).Should(Succeed())
@@ -271,20 +340,40 @@ var _ = Describe("pvc_controller", func() {
 				return nil
 			}, 30).Should(Succeed())
 		})
-		It("should not do anything, that means pvc is continue to be exist", func() {
+	})
+	Context("the main container of the pod is running", func() {
+		BeforeEach(func() {
+			ctx := context.Background()
+			fpvc := &fluentpvcv1alpha1.FluentPVC{}
+			if err := k8sClient.Get(ctx, client.ObjectKey{Name: testFluentPVCNameSidecarSleepLong}, fpvc); err != nil {
+				Expect(err).Should(Succeed())
+			}
+
+			pod := generateTestPodManifest(testPodConfig{
+				AddFluentPVCAnnotation: true,
+				FluentPVCName:          testFluentPVCNameSidecarSleepLong,
+				ContainerArgs:          []string{"sleep", "100"},
+				RestartPolicy:          corev1.RestartPolicyOnFailure,
+			})
+			{
+				err := k8sClient.Create(ctx, pod)
+				Expect(err).Should(Succeed())
+			}
+		})
+		It("should not do anything, that means the pvc is continue to be exist", func() {
 			ctx := context.Background()
 			pod := &corev1.Pod{}
 			if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, pod); err != nil {
 				Expect(err).Should(Succeed())
 			}
 
-			var bList *fluentpvcv1alpha1.FluentPVCBindingList
+			bList := &fluentpvcv1alpha1.FluentPVCBindingList{}
 			var b *fluentpvcv1alpha1.FluentPVCBinding
 			if err := k8sClient.List(ctx, bList); err != nil {
 				Expect(err).Should(Succeed())
 			}
 			for _, b_ := range bList.Items {
-				if b.Spec.Pod.Name == pod.Name {
+				if b_.Spec.Pod.Name == pod.Name {
 					b = b_.DeepCopy()
 				}
 			}
@@ -301,7 +390,7 @@ var _ = Describe("pvc_controller", func() {
 				}
 				for _, stat := range pod.Status.ContainerStatuses {
 					if !stat.Ready || stat.State.Running == nil {
-						return errors.New("Pod ContainerStatuses are not ready.")
+						return errors.New("Pod containers are not ready.")
 					}
 				}
 
@@ -327,7 +416,7 @@ var _ = Describe("pvc_controller", func() {
 			}, 20).Should(Succeed())
 		})
 	})
-	Context("pvc has claimLost phase and binding has Unknown condition", func() {
+	Context("the binding has the Unknown condition", func() {
 		BeforeEach(func() {
 			ctx := context.Background()
 			fpvc := &fluentpvcv1alpha1.FluentPVC{}
@@ -346,20 +435,20 @@ var _ = Describe("pvc_controller", func() {
 				Expect(err).Should(Succeed())
 			}
 		})
-		It("should not do anything, that means pvc is continue to be exist", func() {
+		It("should not do anything, that means the pvc is continue to be exist", func() {
 			ctx := context.Background()
 			pod := &corev1.Pod{}
 			if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, pod); err != nil {
 				Expect(err).Should(Succeed())
 			}
 
-			var bList *fluentpvcv1alpha1.FluentPVCBindingList
+			bList := &fluentpvcv1alpha1.FluentPVCBindingList{}
 			var b *fluentpvcv1alpha1.FluentPVCBinding
 			if err := k8sClient.List(ctx, bList); err != nil {
 				Expect(err).Should(Succeed())
 			}
 			for _, b_ := range bList.Items {
-				if b.Spec.Pod.Name == pod.Name {
+				if b_.Spec.Pod.Name == pod.Name {
 					b = b_.DeepCopy()
 				}
 			}
@@ -377,7 +466,7 @@ var _ = Describe("pvc_controller", func() {
 					}
 					for _, stat := range pod.Status.ContainerStatuses {
 						if !stat.Ready || stat.State.Running == nil {
-							return errors.New("Pod ContainerStatuses are not ready.")
+							return errors.New("Pod containers are not ready.")
 						}
 					}
 				}
@@ -433,7 +522,7 @@ var _ = Describe("pvc_controller", func() {
 					return err
 				}
 				if !b.IsConditionUnknown() {
-					return errors.New("FluentPVCBinding is not Unknown condition.")
+					return errors.New("FluentPVCBinding does not have the Unknown condition.")
 				}
 				return nil
 			}, 30).Should(Succeed())
@@ -449,7 +538,7 @@ var _ = Describe("pvc_controller", func() {
 			}, 20).Should(Succeed())
 		})
 	})
-	Context("pod has succeeded and finalizer job has failed", func() {
+	Context("the pod is succeeded and the finalizer job failed", func() {
 		BeforeEach(func() {
 			ctx := context.Background()
 			fpvc := &fluentpvcv1alpha1.FluentPVC{}
@@ -468,20 +557,20 @@ var _ = Describe("pvc_controller", func() {
 				Expect(err).Should(Succeed())
 			}
 		})
-		It("should not finalize pvc", func() {
+		It("should not finalize the pvc, that means the pvc is continue to be exist", func() {
 			ctx := context.Background()
 			pod := &corev1.Pod{}
 			if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, pod); err != nil {
 				Expect(err).Should(Succeed())
 			}
 
-			var bList *fluentpvcv1alpha1.FluentPVCBindingList
+			bList := &fluentpvcv1alpha1.FluentPVCBindingList{}
 			var b *fluentpvcv1alpha1.FluentPVCBinding
 			if err := k8sClient.List(ctx, bList); err != nil {
 				Expect(err).Should(Succeed())
 			}
 			for _, b_ := range bList.Items {
-				if b.Spec.Pod.Name == pod.Name {
+				if b_.Spec.Pod.Name == pod.Name {
 					b = b_.DeepCopy()
 				}
 			}
@@ -498,7 +587,7 @@ var _ = Describe("pvc_controller", func() {
 				}
 				for _, stat := range pod.Status.ContainerStatuses {
 					if !stat.Ready || stat.State.Running == nil {
-						return errors.New("Pod ContainerStatuses are not ready.")
+						return errors.New("Pod containers are not ready.")
 					}
 				}
 
@@ -526,7 +615,7 @@ var _ = Describe("pvc_controller", func() {
 					return err
 				}
 				if !b.IsConditionFinalizerJobApplied() {
-					return errors.New("FluentPVCBinding is not FinalizerJobApplied condition.")
+					return errors.New("FluentPVCBinding does not have the FinalizerJobApplied condition.")
 				}
 
 				pvc := &corev1.PersistentVolumeClaim{}
@@ -542,7 +631,7 @@ var _ = Describe("pvc_controller", func() {
 					return err
 				}
 				if !b.IsConditionFinalizerJobFailed() {
-					return errors.New("FluentPVCBinding is not FinalizerJobFailed condition.")
+					return errors.New("FluentPVCBinding does not have the FinalizerJobFailed condition.")
 				}
 
 				pvc := &corev1.PersistentVolumeClaim{}
@@ -555,7 +644,7 @@ var _ = Describe("pvc_controller", func() {
 					return err
 				}
 				if len(jobs.Items) != 1 {
-					return errors.New("Job not found or Multiple Job found.")
+					return errors.New("Job not found or multiple job found.")
 				}
 				for _, c := range jobs.Items[0].Status.Conditions {
 					if c.Type == batchv1.JobFailed && c.Status == corev1.ConditionFalse {

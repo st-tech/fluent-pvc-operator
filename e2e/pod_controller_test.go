@@ -109,7 +109,6 @@ func generateTestPodManifest(testPodConfig testPodConfig) *corev1.Pod {
 					Image: "krallin/ubuntu-tini:trusty",
 				},
 			},
-			TerminationGracePeriodSeconds: pointer.Int64Ptr(0),
 		},
 	}
 	if testPodConfig.AddFluentPVCAnnotation {
