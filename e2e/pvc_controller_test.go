@@ -64,10 +64,12 @@ var _ = Describe("pvc_controller", func() {
 				ContainerArgs:          []string{"sleep", "100"},
 				RestartPolicy:          corev1.RestartPolicyOnFailure,
 			})
-			{
-				err := k8sClient.Create(ctx, pod)
-				Expect(err).ShouldNot(HaveOccurred())
-			}
+			Eventually(func() error {
+				if err := k8sClient.Create(ctx, pod); err != nil {
+					return err
+				}
+				return nil
+			}, 30).Should(Succeed())
 		})
 		It("should finalize and remove the pvc", func() {
 			ctx := context.Background()
@@ -173,6 +175,14 @@ var _ = Describe("pvc_controller", func() {
 				}
 				if pvc.Status.Phase != corev1.ClaimBound {
 					return errors.New("PVC is not bound.")
+				}
+
+				b := &fluentpvcv1alpha1.FluentPVCBinding{}
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, b); err != nil {
+					return err
+				}
+				if !b.IsConditionReady() {
+					return errors.New("FluentPVCBinding does not have the Ready condition.")
 				}
 				return nil
 			}, 30).Should(Succeed())
@@ -344,10 +354,12 @@ var _ = Describe("pvc_controller", func() {
 				ContainerArgs:          []string{"sleep", "100"},
 				RestartPolicy:          corev1.RestartPolicyOnFailure,
 			})
-			{
-				err := k8sClient.Create(ctx, pod)
-				Expect(err).ShouldNot(HaveOccurred())
-			}
+			Eventually(func() error {
+				if err := k8sClient.Create(ctx, pod); err != nil {
+					return err
+				}
+				return nil
+			}, 30).Should(Succeed())
 		})
 		It("should not do anything, that means the pvc is continue to be exist", func() {
 			ctx := context.Background()
@@ -419,10 +431,12 @@ var _ = Describe("pvc_controller", func() {
 				ContainerArgs:          []string{"sleep", "100"},
 				RestartPolicy:          corev1.RestartPolicyOnFailure,
 			})
-			{
-				err := k8sClient.Create(ctx, pod)
-				Expect(err).ShouldNot(HaveOccurred())
-			}
+			Eventually(func() error {
+				if err := k8sClient.Create(ctx, pod); err != nil {
+					return err
+				}
+				return nil
+			}, 30).Should(Succeed())
 		})
 		It("should not do anything, that means the pvc is continue to be exist", func() {
 			ctx := context.Background()
@@ -541,10 +555,12 @@ var _ = Describe("pvc_controller", func() {
 				ContainerArgs:          []string{"sleep", "100"},
 				RestartPolicy:          corev1.RestartPolicyOnFailure,
 			})
-			{
-				err := k8sClient.Create(ctx, pod)
-				Expect(err).ShouldNot(HaveOccurred())
-			}
+			Eventually(func() error {
+				if err := k8sClient.Create(ctx, pod); err != nil {
+					return err
+				}
+				return nil
+			}, 30).Should(Succeed())
 		})
 		It("should not finalize the pvc, that means the pvc is continue to be exist", func() {
 			ctx := context.Background()
@@ -586,6 +602,14 @@ var _ = Describe("pvc_controller", func() {
 				}
 				if pvc.Status.Phase != corev1.ClaimBound {
 					return errors.New("PVC is not bound.")
+				}
+
+				b := &fluentpvcv1alpha1.FluentPVCBinding{}
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingAndPVCName}, b); err != nil {
+					return err
+				}
+				if !b.IsConditionReady() {
+					return errors.New("FluentPVCBinding does not have the Ready condition.")
 				}
 				return nil
 			}, 30).Should(Succeed())
