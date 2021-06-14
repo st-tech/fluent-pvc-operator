@@ -68,9 +68,9 @@ var _ = Describe("Pod Mutation Webhook", func() {
 					},
 					StorageClassName: func(s string) *string { return &s }(testStorageClassName),
 				},
-				VolumeName:      testVolumeName,
-				CommonMountPath: testMountPath,
-				CommonEnv:       []corev1.EnvVar{},
+				PVCVolumeName:      testVolumeName,
+				PVCVolumeMountPath: testMountPath,
+				CommonEnvs:         []corev1.EnvVar{},
 				SidecarContainerTemplate: corev1.Container{
 					Name:    testSidecarContainerName,
 					Command: []string{"echo", "test"},

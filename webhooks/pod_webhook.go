@@ -109,8 +109,11 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 
 	logger.Info(fmt.Sprintf("Inject PVC='%s' into Pod='%s'", name, pod.Name))
 	podPatched := pod.DeepCopy()
+	for _, v := range fpvc.Spec.CommonVolumes {
+		podutils.InjectOrReplaceVolume(&podPatched.Spec, v.DeepCopy())
+	}
 	podutils.InjectOrReplaceVolume(&podPatched.Spec, &corev1.Volume{
-		Name: fpvc.Spec.VolumeName,
+		Name: fpvc.Spec.PVCVolumeName,
 		VolumeSource: corev1.VolumeSource{
 			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
 				ClaimName: name,
@@ -118,11 +121,14 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 		},
 	})
 	podutils.InjectOrReplaceContainer(&podPatched.Spec, fpvc.Spec.SidecarContainerTemplate.DeepCopy())
+	for _, vm := range fpvc.Spec.CommonVolumeMounts {
+		podutils.InjectOrReplaceVolumeMount(&podPatched.Spec, vm.DeepCopy())
+	}
 	podutils.InjectOrReplaceVolumeMount(&podPatched.Spec, &corev1.VolumeMount{
-		Name:      fpvc.Spec.VolumeName,
-		MountPath: fpvc.Spec.CommonMountPath,
+		Name:      fpvc.Spec.PVCVolumeName,
+		MountPath: fpvc.Spec.PVCVolumeMountPath,
 	})
-	for _, e := range fpvc.Spec.CommonEnv {
+	for _, e := range fpvc.Spec.CommonEnvs {
 		podutils.InjectOrReplaceEnv(&podPatched.Spec, e.DeepCopy())
 	}
 

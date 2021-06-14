@@ -9,10 +9,10 @@ spec:
     resources:
       requests:
         storage: 1Gi
-  volumeName: fluent-pvc
-  commonMountPath: /mnt/fluent-pvc
+  pvcVolumeName: fluent-pvc
+  pvcVolumeMountPath: /mnt/fluent-pvc
   deletePodIfSidecarContainerTerminationDetected: true
-  commonEnv:
+  commonEnvs:
     - name: FLUENTD_COLLECT_ROOT_DIR
       value: /mnt/fluent-pvc
     - name: POD_NAMESPACE
