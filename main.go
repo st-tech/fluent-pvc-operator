@@ -99,7 +99,6 @@ func main() {
 		addrPort := fmt.Sprintf("%s:%d", mgr.GetWebhookServer().Host, mgr.GetWebhookServer().Port)
 		conn, err := tls.DialWithDialer(dialer, "tcp", addrPort, &tls.Config{InsecureSkipVerify: true})
 		if err != nil {
-			setupLog.Error(err, "DialWithDialer failed.")
 			return err
 		}
 		conn.Close()

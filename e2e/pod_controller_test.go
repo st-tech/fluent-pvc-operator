@@ -36,6 +36,7 @@ func generateFluentPVCForTest(
 	testSidecarContainerName string,
 	deletePodIfSidecarContainerTerminationDetected bool,
 	sidecarContainerCommand []string,
+	finalizerContainerCommand []string,
 ) *fluentpvcv1alpha1.FluentPVC {
 	return &fluentpvcv1alpha1.FluentPVC{
 		TypeMeta: metav1.TypeMeta{
@@ -65,13 +66,14 @@ func generateFluentPVCForTest(
 			},
 			DeletePodIfSidecarContainerTerminationDetected: deletePodIfSidecarContainerTerminationDetected,
 			PVCFinalizerJobSpecTemplate: batchv1.JobSpec{
+				BackoffLimit: pointer.Int32Ptr(0),
 				Template: corev1.PodTemplateSpec{
 					Spec: corev1.PodSpec{
-						RestartPolicy: corev1.RestartPolicyOnFailure,
+						RestartPolicy: corev1.RestartPolicyNever,
 						Containers: []corev1.Container{
 							{
 								Name:    "test-finalizer-container",
-								Command: []string{"echo", "test"},
+								Command: finalizerContainerCommand,
 								Image:   "alpine",
 							},
 						},
@@ -85,6 +87,7 @@ func generateFluentPVCForTest(
 type testPodConfig struct {
 	AddFluentPVCAnnotation bool
 	FluentPVCName          string
+	ContainerArgs          []string
 	RestartPolicy          corev1.RestartPolicy
 }
 
@@ -112,6 +115,9 @@ func generateTestPodManifest(testPodConfig testPodConfig) *corev1.Pod {
 		pod.SetAnnotations(map[string]string{
 			constants.PodAnnotationFluentPVCName: testPodConfig.FluentPVCName,
 		})
+	}
+	if testPodConfig.ContainerArgs != nil {
+		pod.Spec.Containers[0].Args = testPodConfig.ContainerArgs
 	}
 	if testPodConfig.RestartPolicy != "" {
 		pod.Spec.RestartPolicy = testPodConfig.RestartPolicy
@@ -185,15 +191,15 @@ var _ = Describe("pod_controller", func() {
 		Eventually(func() error { return deleteFluentPVC(ctx, k8sClient, testFluentPVCNameDeletePodFalse) }, 10).Should(Succeed())
 		Eventually(func() error { return deleteFluentPVC(ctx, k8sClient, testFluentPVCNameSidecarFailed) }, 10).Should(Succeed())
 		{
-			err := k8sClient.Create(ctx, generateFluentPVCForTest(testFluentPVCNameDefault, testSidecarContainerName, true, []string{"sh", "-c", "sleep 5"}))
+			err := k8sClient.Create(ctx, generateFluentPVCForTest(testFluentPVCNameDefault, testSidecarContainerName, true, []string{"sh", "-c", "sleep 5"}, []string{"echo", "test"}))
 			Expect(err).NotTo(HaveOccurred())
 		}
 		{
-			err := k8sClient.Create(ctx, generateFluentPVCForTest(testFluentPVCNameDeletePodFalse, testSidecarContainerName, false, []string{"sh", "-c", "sleep 5; exit 1"}))
+			err := k8sClient.Create(ctx, generateFluentPVCForTest(testFluentPVCNameDeletePodFalse, testSidecarContainerName, false, []string{"sh", "-c", "sleep 5; exit 1"}, []string{"echo", "test"}))
 			Expect(err).NotTo(HaveOccurred())
 		}
 		{
-			err := k8sClient.Create(ctx, generateFluentPVCForTest(testFluentPVCNameSidecarFailed, testSidecarContainerName, true, []string{"sh", "-c", "sleep 5; exit 1"}))
+			err := k8sClient.Create(ctx, generateFluentPVCForTest(testFluentPVCNameSidecarFailed, testSidecarContainerName, true, []string{"sh", "-c", "sleep 5; exit 1"}, []string{"echo", "test"}))
 			Expect(err).NotTo(HaveOccurred())
 		}
 	})
@@ -225,10 +231,12 @@ var _ = Describe("pod_controller", func() {
 				Command: []string{"sh", "-c", "sleep 5; exit 1"},
 				Image:   "alpine",
 			})
-			{
-				err := k8sClient.Create(ctx, pod)
-				Expect(err).Should(Succeed())
-			}
+			Eventually(func() error {
+				if err := k8sClient.Create(ctx, pod); err != nil {
+					return err
+				}
+				return nil
+			}, 30).Should(Succeed())
 		})
 		It("should not do anything, that means the pod continues to be running", func() {
 			ctx := context.Background()
@@ -278,10 +286,12 @@ var _ = Describe("pod_controller", func() {
 				AddFluentPVCAnnotation: true,
 				FluentPVCName:          testFluentPVCNameDefault,
 			})
-			{
-				err := k8sClient.Create(ctx, pod)
-				Expect(err).Should(Succeed())
-			}
+			Eventually(func() error {
+				if err := k8sClient.Create(ctx, pod); err != nil {
+					return err
+				}
+				return nil
+			}, 30).Should(Succeed())
 		})
 		It("should not do anything, that means the pod continues to be running", func() {
 			mutPod := &corev1.Pod{}
@@ -338,10 +348,12 @@ var _ = Describe("pod_controller", func() {
 				AddFluentPVCAnnotation: true,
 				FluentPVCName:          testFluentPVCNameDeletePodFalse,
 			})
-			{
-				err := k8sClient.Create(ctx, pod)
-				Expect(err).Should(Succeed())
-			}
+			Eventually(func() error {
+				if err := k8sClient.Create(ctx, pod); err != nil {
+					return err
+				}
+				return nil
+			}, 30).Should(Succeed())
 
 			Eventually(func() error {
 				mutPod := &corev1.Pod{}
@@ -392,10 +404,12 @@ var _ = Describe("pod_controller", func() {
 				FluentPVCName:          testFluentPVCNameSidecarFailed,
 				RestartPolicy:          corev1.RestartPolicyOnFailure,
 			})
-			{
-				err := k8sClient.Create(ctx, pod)
-				Expect(err).Should(Succeed())
-			}
+			Eventually(func() error {
+				if err := k8sClient.Create(ctx, pod); err != nil {
+					return err
+				}
+				return nil
+			}, 30).Should(Succeed())
 			Eventually(func() error {
 				mutPod := &corev1.Pod{}
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, mutPod)
@@ -437,10 +451,12 @@ var _ = Describe("pod_controller", func() {
 				FluentPVCName:          testFluentPVCNameSidecarFailed,
 			})
 			pod.Spec.RestartPolicy = corev1.RestartPolicyNever
-			{
-				err := k8sClient.Create(ctx, pod)
-				Expect(err).Should(Succeed())
-			}
+			Eventually(func() error {
+				if err := k8sClient.Create(ctx, pod); err != nil {
+					return err
+				}
+				return nil
+			}, 30).Should(Succeed())
 			Eventually(func() error {
 				mutPod := &corev1.Pod{}
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: testPodName}, mutPod)
