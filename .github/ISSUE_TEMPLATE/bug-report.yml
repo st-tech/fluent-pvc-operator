@@ -1,0 +1,68 @@
+name: Bug report
+description: Something is not working correctly.
+labels: "S: needs triage, type: bug"
+
+body:
+  - type: textarea
+    attributes:
+      label: Description
+      description: >-
+        A clear and concise description of what the bug is.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Expected behavior
+      description: >-
+        A clear and concise description of what you expected to happen.
+
+  - type: input
+    attributes:
+      label: >-
+        [Kubernetes](https://kubernetes.io/releases/) version
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: >-
+        [cert-manager](https://github.com/jetstack/cert-manager/releases) version
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: >-
+        [fluent-pvc-operator](https://github.com/st-tech/fluent-pvc-operator/releases) version
+    validations:
+      required: true
+  - type: dropdown
+    attributes:
+      label: What kind of Kubernetes?
+      options:
+        - Google Kubernetes Engine
+        - Amazon Elastic Kubernetes Service
+        - Azure Kubernetes Service
+        - Hosted by the Other Public Cloud Vendors
+        - Hosted by the Other Private Cloud Vendors
+        - Self-Hosted
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: How to Reproduce
+      description: Please provide steps to reproduce this bug.
+      value: |
+        1. Apply a Pod when fluent-pvc-operator status is '...'
+        2. Then the PVC status is changed to '...'
+        3. An error occurs.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Output
+      description: >-
+        Provide the output of the steps above, including the manifests
+        themselves and fluent-pvc-operator's output/traceback etc.
+      render: sh-session
