@@ -184,19 +184,19 @@ $ make cert-manager
 ### Build fluent-pvc-operator
 
 ```sh
-$ make docker-build IMG=controller:0.0.1
+$ make docker-build
 ```
 
 ### Load the image into the kind cluster
 
 ```sh
-$ kind load docker-image controller:0.0.1
+$ kind load docker-image
 ```
 
 ### Deploy fluent-pvc-operator
 
 ```sh
-$ make deploy IMG=controller:0.0.1
+$ make deploy
 ```
 
 ### Watch the behaviors
