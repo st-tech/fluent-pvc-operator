@@ -206,8 +206,7 @@ $ kubectl apply -f config/samples/fluent-pvc-operator_v1alpha1_fluentpvc.yaml
 $ kubectl run --image=alpine:latest --annotations fluent-pvc-operator.tech.zozo.com/fluent-pvc-name=fluent-pvc-sample sample-pod -- sh -c 'for i in $(seq 1 60); do sleep 1; echo $i; done'
 
 ## You can watch the status changes by the following command.
-$ watch -n1 bash -c "$(cat <<EOS
-echo
+$ watch -n1 "
 echo '=======FluentPVC======='
 kubectl get fluentpvc
 echo '=======FluentPVCBinding======='
@@ -219,8 +218,7 @@ kubectl get job
 echo '=======Pod======='
 kubectl get pod
 echo '=============='
-EOS
-)"
+"
 ```
 
 
