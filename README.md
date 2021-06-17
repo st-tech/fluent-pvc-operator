@@ -199,6 +199,32 @@ $ kind load docker-image controller:0.0.1
 $ make deploy IMG=controller:0.0.1
 ```
 
+### Watch the behaviors
+
+```sh
+$ kubectl apply -f config/samples/fluent-pvc-operator_v1alpha1_fluentpvc.yaml
+$ kubectl run --image=alpine:latest --annotations fluent-pvc-operator.tech.zozo.com/fluent-pvc-name=fluent-pvc-sample sample-pod -- sh -c 'for i in $(seq 1 60); do sleep 1; echo $i; done'
+
+## You can watch the status changes by the following command.
+$ watch -n1 bash -c "$(cat <<EOS
+echo
+echo '=======FluentPVC======='
+kubectl get fluentpvc
+echo '=======FluentPVCBinding======='
+kubectl get fluentpvcbinding
+echo '=======PVC======='
+kubectl get pvc
+echo '=======Job======='
+kubectl get job
+echo '=======Pod======='
+kubectl get pod
+echo '=============='
+EOS
+)"
+```
+
+
+
 ### Run unit tests
 
 ```sh
