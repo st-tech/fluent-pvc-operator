@@ -41,10 +41,8 @@ var _ = Describe("pvc_controller", func() {
 		pod.SetName(testPodName)
 		if err := k8sClient.Delete(ctx, pod, &client.DeleteOptions{
 			GracePeriodSeconds: pointer.Int64Ptr(0),
-		}); err != nil {
-			if !apierrors.IsNotFound(err) {
-				Expect(err).ShouldNot(HaveOccurred())
-			}
+		}); client.IgnoreNotFound(err) != nil {
+			Expect(err).ShouldNot(HaveOccurred())
 		}
 
 		Eventually(func() error { return deleteFluentPVC(ctx, k8sClient, testFluentPVCNameSidecarSleepLong) }, 10).Should(Succeed())

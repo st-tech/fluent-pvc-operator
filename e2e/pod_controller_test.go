@@ -158,20 +158,8 @@ func deleteFluentPVC(ctx context.Context, c client.Client, n string) error {
 }
 
 func deleteFluentPVCBinding(ctx context.Context, c client.Client, b *fluentpvcv1alpha1.FluentPVCBinding) error {
-	pvc := &corev1.PersistentVolumeClaim{}
-	pvcFound := true
-	if err := c.Get(ctx, client.ObjectKey{Namespace: b.Namespace, Name: b.Spec.PVC.Name}, pvc); err != nil {
-		if apierrors.IsNotFound(err) {
-			pvcFound = false
-		} else {
-			return err
-		}
-	}
-	if pvcFound && controllerutil.ContainsFinalizer(pvc, constants.PVCFinalizerName) {
-		controllerutil.RemoveFinalizer(pvc, constants.PVCFinalizerName)
-		if err := c.Update(ctx, pvc); client.IgnoreNotFound(err) != nil {
-			return err
-		}
+	if err := deletePVC(ctx, c, b.Spec.PVC.Name, b.Namespace); err != nil {
+		return err
 	}
 	if controllerutil.ContainsFinalizer(b, constants.FluentPVCBindingFinalizerName) {
 		controllerutil.RemoveFinalizer(b, constants.FluentPVCBindingFinalizerName)
@@ -180,6 +168,53 @@ func deleteFluentPVCBinding(ctx context.Context, c client.Client, b *fluentpvcv1
 		}
 	}
 	if err := c.Delete(ctx, b, client.GracePeriodSeconds(0)); client.IgnoreNotFound(err) != nil {
+		return err
+	}
+	return nil
+}
+
+func deletePVC(ctx context.Context, c client.Client, name string, namespace string) error {
+	pvc := &corev1.PersistentVolumeClaim{}
+	if err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, pvc); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		} else {
+			return err
+		}
+	}
+	if controllerutil.ContainsFinalizer(pvc, constants.PVCFinalizerName) {
+		controllerutil.RemoveFinalizer(pvc, constants.PVCFinalizerName)
+		if err := c.Update(ctx, pvc); client.IgnoreNotFound(err) != nil {
+			return err
+		}
+		if pvc.Status.Phase == corev1.ClaimBound {
+			if err := deletePV(ctx, c, pvc.Spec.VolumeName, pvc.Namespace); err != nil {
+				return err
+			}
+		}
+	}
+	if err := c.Delete(ctx, pvc, client.GracePeriodSeconds(0)); client.IgnoreNotFound(err) != nil {
+		return err
+	}
+	return nil
+}
+
+func deletePV(ctx context.Context, c client.Client, name string, namespace string) error {
+	pv := &corev1.PersistentVolume{}
+	if err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, pv); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		} else {
+			return err
+		}
+	}
+	if controllerutil.ContainsFinalizer(pv, "kubernetes.io/pv-protection") {
+		controllerutil.RemoveFinalizer(pv, "kubernetes.io/pv-protection")
+		if err := c.Update(ctx, pv); client.IgnoreNotFound(err) != nil {
+			return err
+		}
+	}
+	if err := c.Delete(ctx, pv, client.GracePeriodSeconds(0)); client.IgnoreNotFound(err) != nil {
 		return err
 	}
 	return nil
