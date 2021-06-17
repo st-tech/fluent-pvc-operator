@@ -178,7 +178,7 @@ Use [kind](https://kind.sigs.k8s.io/) to create local Kubernetes clusters.
 
 ```sh
 $ kind create cluster
-$ make apply-cert-manager
+$ make cert-manager
 ```
 
 ### Build fluent-pvc-operator
