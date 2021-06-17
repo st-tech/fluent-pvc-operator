@@ -107,9 +107,10 @@ rm -rf $$TMP_DIR ;\
 }
 endef
 
-#########################
-# Settings for e2e test #
-#########################
+#======= END kubebuilder generated =======
+
+##@ Development (User Defined Commands)
+
 # parameters
 TEST_KUBERNETES_TARGET ?= current
 
@@ -117,7 +118,7 @@ TEST_KUBERNETES_TARGET ?= current
 KIND_VERSION := 0.10.0
 CERT_MANAGER_VERSION := 1.3.1
 BINDIR := $(shell pwd)/bin
-KIND_CLUSTER_NAME := fluent-pvc-operator-e2e
+KIND_CLUSTER_NAME := fluent-pvc-operator
 KUSTOMIZE_DIR := $(shell pwd)/config/default
 FLUENT_PVC_NAMESPACE := fluent-pvc-operator-system
 
@@ -139,24 +140,24 @@ KUBERNETES_VERSION := 1.18.19
 endif
 
 .PHONY: launch-kind
-launch-kind: kind kubectl shutdown-kind
+launch-kind: kind kubectl shutdown-kind ## Launch a K8s cluster by kind.
 	$(BINDIR)/kind create cluster --name=$(KIND_CLUSTER_NAME) --image kindest/node:v$(KUBERNETES_VERSION)
 	$(BINDIR)/kubectl config use-context kind-$(KIND_CLUSTER_NAME)
 
-.PHONY: apply-cert-manager
-apply-cert-manager: kubectl
+.PHONY: cert-manager
+cert-manager: kubectl ## Apply cert-manager into the K8s cluster specified in ~/.kube/config.
 	$(BINDIR)/kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v$(CERT_MANAGER_VERSION)/cert-manager.yaml
 	$(BINDIR)/kubectl wait -n cert-manager --for=condition=Available deployments --all --timeout=300s
 
 .PHONY: load-image-kind
-load-image-kind: docker-build kind
+load-image-kind: docker-build kind ## Load the docker image into the K8s cluster launched by kind.
 	$(BINDIR)/kind load docker-image --name $(KIND_CLUSTER_NAME) $(IMG)
 
 .PHONY: shutdown-kind
-shutdown-kind: kind
+shutdown-kind: kind ## Shutdown a K8s cluster by kind.
 	$(BINDIR)/kind delete cluster --name=$(KIND_CLUSTER_NAME) || true
 
-kind:
+kind: ## Download kind locally if necessary.
 ifeq (,$(wildcard $(BINDIR)/kind))
 ifeq ($(shell uname),Darwin)
 	curl --create-dirs -o $(BINDIR)/kind -sfL https://kind.sigs.k8s.io/dl/v$(KIND_VERSION)/kind-darwin-amd64
@@ -166,7 +167,7 @@ endif
 	chmod a+x $(BINDIR)/kind
 endif
 
-kubectl:
+kubectl: ## Download kubectl locally if necessary.
 ifeq (,$(wildcard $(BINDIR)/kubectl))
 ifeq ($(shell uname),Darwin)
 	curl --create-dirs -o $(BINDIR)/kubectl -sfL https://storage.googleapis.com/kubernetes-release/release/v$(KUBERNETES_VERSION)/bin/darwin/amd64/kubectl
@@ -181,13 +182,13 @@ wait-fluent-pvc-operator:
 	$(BINDIR)/kubectl wait -n $(FLUENT_PVC_NAMESPACE) --for=condition=Available deployments --all --timeout=300s
 
 .PHONY: setup-e2e-test
-setup-e2e-test: launch-kind apply-cert-manager load-image-kind deploy wait-fluent-pvc-operator
+setup-e2e-test: launch-kind cert-manager load-image-kind deploy wait-fluent-pvc-operator
 
 .PHONY: clean-e2e-test
-clean-e2e-test: setup-e2e-test e2e-test
+clean-e2e-test: setup-e2e-test e2e-test ## Run e2e tests with relaunching the kind cluster.
 
 .PHONY: e2e-test
-e2e-test:
+e2e-test: ## Run e2e tests with the existing kind cluster.
 	mkdir -p ${ENVTEST_ASSETS_DIR}
 	test -f ${ENVTEST_ASSETS_DIR}/setup-envtest.sh || curl -sSLo ${ENVTEST_ASSETS_DIR}/setup-envtest.sh https://raw.githubusercontent.com/kubernetes-sigs/controller-runtime/v0.7.2/hack/setup-envtest.sh
 	source ${ENVTEST_ASSETS_DIR}/setup-envtest.sh; fetch_envtest_tools $(ENVTEST_ASSETS_DIR); setup_envtest_env $(ENVTEST_ASSETS_DIR); USE_EXISTING_CLUSTER=true go test ./e2e -coverprofile cover-e2e.out
