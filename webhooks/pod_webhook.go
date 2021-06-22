@@ -58,7 +58,10 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 	}
 	fpvc := &fluentpvcv1alpha1.FluentPVC{}
 	if n, ok := pod.Annotations[constants.PodAnnotationFluentPVCName]; !ok {
-		return admission.Allowed(fmt.Sprintf("Pod: %s is not a target for fluent-pvc.", pod.Name))
+		return admission.Allowed(fmt.Sprintf(
+			"Pod='%s'(namespace='%s', generatorName='%s') is not a target for fluent-pvc.",
+			pod.Name, req.Namespace, pod.GenerateName,
+		))
 	} else {
 		if err := m.Get(ctx, client.ObjectKey{Name: n}, fpvc); err != nil {
 			return admission.Errored(http.StatusInternalServerError, err)
@@ -72,7 +75,7 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 		fpvc.Name, hashutils.ComputeHash(fpvc, nil), hashutils.ComputeHash(pod, nil),
 	)
 
-	logger.Info(fmt.Sprintf("CreateOrUpdate PVC='%s'.(namespace='%s')", name, req.Namespace))
+	logger.Info(fmt.Sprintf("CreateOrUpdate PVC='%s'(namespace='%s').", name, req.Namespace))
 	pvc := &corev1.PersistentVolumeClaim{}
 	pvc.SetName(name)
 	pvc.SetNamespace(req.Namespace)
@@ -84,11 +87,11 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 		// return ctrl.SetControllerReference(b, pvc, m.Scheme())
 		return nil
 	}); err != nil {
-		logger.Error(err, fmt.Sprintf("Cannot CreateOrUpdate PVC='%s'.(namespace='%s')", name, req.Namespace))
+		logger.Error(err, fmt.Sprintf("Cannot CreateOrUpdate PVC='%s'(namespace='%s').", name, req.Namespace))
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
 
-	logger.Info(fmt.Sprintf("CreateOrUpdate FluentPVCBinding='%s'.(namespace='%s')", name, req.Namespace))
+	logger.Info(fmt.Sprintf("CreateOrUpdate FluentPVCBinding='%s'(namespace='%s').", name, req.Namespace))
 	b := &fluentpvcv1alpha1.FluentPVCBinding{}
 	b.SetName(name)
 	b.SetNamespace(req.Namespace)
@@ -103,8 +106,15 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
 
-	logger.Info(fmt.Sprintf("Inject PVC='%s' into Pod='%s'", name, pod.Name))
+	logger.Info(fmt.Sprintf(
+		"Inject PVC='%s' into Pod='%s'(namespace='%s', generatorName='%s').",
+		name, pod.Name, req.Namespace, pod.GenerateName,
+	))
 	podPatched := pod.DeepCopy()
+	if podPatched.Labels == nil {
+		podPatched.Labels = map[string]string{}
+	}
+	podPatched.Labels[constants.PodLabelFluentPVCBindingName] = name
 	for _, v := range fpvc.Spec.CommonVolumes {
 		podutils.InjectOrReplaceVolume(&podPatched.Spec, v.DeepCopy())
 	}
@@ -129,8 +139,8 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 	}
 
 	logger.Info(fmt.Sprintf(
-		"Patch Pod='%s' with PVC='%s' by FluentPVC='%s'. (Namespace='%s', FluentPVCBinding='%s')",
-		podPatched.Name, pvc.Name, fpvc.Name, podPatched.Namespace, b.Name,
+		"Patch Pod='%s'(namespace='%s', generatorName='%s') with PVC='%s' and FluentPVCBinding='%s' by FluentPVC='%s'.",
+		podPatched.Name, req.Namespace, podPatched.GenerateName, pvc.Name, b.Name, fpvc.Name,
 	))
 	return PodAdmissionResponse(podPatched, req)
 }
