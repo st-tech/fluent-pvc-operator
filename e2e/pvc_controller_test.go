@@ -698,9 +698,12 @@ var _ = Describe("pvc_controller", func() {
 				if len(jobs.Items) != 1 {
 					return errors.New("Job not found or multiple job found.")
 				}
+				// if jobs.Items[0].Status.Failed == 0 || len(jobs.Items[0].Status.Conditions) == 0 {
+				// 	return errors.New("Job is not failed.")
+				// }
 				for _, c := range jobs.Items[0].Status.Conditions {
-					if c.Type == batchv1.JobFailed && c.Status == corev1.ConditionFalse {
-						return errors.New("Job have not failed.")
+					if c.Type != batchv1.JobFailed || c.Status == corev1.ConditionFalse {
+						return errors.New("Job is not failed.")
 					}
 				}
 				return nil
