@@ -8,6 +8,7 @@ import (
 	fluentpvcv1alpha1 "github.com/st-tech/fluent-pvc-operator/api/v1alpha1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -593,13 +594,52 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 				if len(jobs.Items) != 1 {
 					return errors.New("Job not found or multiple job found.")
 				}
+				// if jobs.Items[0].Status.Succeeded == 0 || len(jobs.Items[0].Status.Conditions) == 0 {
+				// 	return errors.New("Job is not completed.")
+				// }
 				for _, c := range jobs.Items[0].Status.Conditions {
-					if c.Type == batchv1.JobComplete && c.Status == corev1.ConditionFalse {
+					if c.Type != batchv1.JobComplete || c.Status == corev1.ConditionFalse {
 						return errors.New("Job is not completed.")
 					}
 				}
 				return nil
 			}, 60).Should(Succeed())
+		})
+		It("should have the FinalizerJobSucceeded condition even if the binding is deleted after the finalizer job applied", func() {
+			initBinding, err := getBindingFromTestPod()
+			if err != nil {
+				Expect(err).ShouldNot(HaveOccurred())
+			}
+
+			By("checking that the binding has the FinalizerJobApplied condition.")
+			Eventually(func() error {
+				b := &fluentpvcv1alpha1.FluentPVCBinding{}
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b); err != nil {
+					return err
+				}
+				if !b.IsConditionFinalizerJobApplied() {
+					return errors.New("FluentPVCBinding does not have the FinalizerJobApplied condition.")
+				}
+				return nil
+			}, 60).Should(Succeed())
+
+			By("deleting the binding.")
+			if err := k8sClient.Delete(ctx, initBinding); err != nil {
+				Expect(err).ShouldNot(HaveOccurred())
+			}
+
+			By("checking that the binding has the FinalizerJobSucceeded condition.")
+			Eventually(func() error {
+				b := &fluentpvcv1alpha1.FluentPVCBinding{}
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b); err != nil {
+					return err
+				}
+				if !b.IsConditionFinalizerJobSucceeded() {
+					return errors.New("FluentPVCBinding does not have the FinalizerJobSucceeded condition.")
+				}
+				return nil
+			}, 60).Should(Succeed())
+
 		})
 		It("should clean up the pvc and the binding itseld after FinalizerJobSucceeded condition", func() {
 			initBinding, err := getBindingFromTestPod()
@@ -615,6 +655,36 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 				}
 				if !b.IsConditionFinalizerJobSucceeded() {
 					return errors.New("FluentPVCBinding does not have the FinalizerJobSucceeded condition.")
+				}
+				return nil
+			}, 60).Should(Succeed())
+
+			By("deleting the pod.")
+			pod := &corev1.Pod{}
+			pod.SetName(testPodName)
+			pod.SetNamespace(testNamespace)
+			if err := k8sClient.Delete(ctx, pod, client.GracePeriodSeconds(0)); client.IgnoreNotFound(err) != nil {
+				Expect(err).ShouldNot(HaveOccurred())
+			}
+
+			By("checking that the binding and the pvc are removed.")
+			Eventually(func() error {
+				pvc := &corev1.PersistentVolumeClaim{}
+				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, pvc)
+				if err == nil {
+					return errors.New("PVC is still exist.")
+				}
+				if !apierrors.IsNotFound(err) {
+					return err
+				}
+
+				b := &fluentpvcv1alpha1.FluentPVCBinding{}
+				err = k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b)
+				if err == nil {
+					return errors.New("Binding is still exist.")
+				}
+				if !apierrors.IsNotFound(err) {
+					return err
 				}
 				return nil
 			}, 60).Should(Succeed())
@@ -646,8 +716,11 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 				if len(jobs.Items) != 1 {
 					return errors.New("Job not found or multiple job found.")
 				}
+				if jobs.Items[0].Status.Succeeded == 0 || len(jobs.Items[0].Status.Conditions) == 0 {
+					return errors.New("Job is not completed.")
+				}
 				for _, c := range jobs.Items[0].Status.Conditions {
-					if c.Type == batchv1.JobComplete && c.Status == corev1.ConditionFalse {
+					if c.Type != batchv1.JobComplete || c.Status == corev1.ConditionFalse {
 						return errors.New("Job is not completed.")
 					}
 				}
@@ -804,8 +877,11 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 				if len(jobs.Items) != 1 {
 					return errors.New("Job not found or multiple job found.")
 				}
+				// if jobs.Items[0].Status.Failed == 0 || len(jobs.Items[0].Status.Conditions) == 0 {
+				// 	return errors.New("Job is not failed.")
+				// }
 				for _, c := range jobs.Items[0].Status.Conditions {
-					if c.Type == batchv1.JobFailed && c.Status == corev1.ConditionFalse {
+					if c.Type != batchv1.JobFailed || c.Status == corev1.ConditionFalse {
 						return errors.New("Job is not failed.")
 					}
 				}
@@ -839,8 +915,11 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 				if len(jobs.Items) != 1 {
 					return errors.New("Job not found or multiple job found.")
 				}
+				// if jobs.Items[0].Status.Failed == 0 || len(jobs.Items[0].Status.Conditions) == 0 {
+				// 	return errors.New("Job is not failed.")
+				// }
 				for _, c := range jobs.Items[0].Status.Conditions {
-					if c.Type == batchv1.JobFailed && c.Status == corev1.ConditionFalse {
+					if c.Type != batchv1.JobFailed || c.Status == corev1.ConditionFalse {
 						return errors.New("Job is not failed.")
 					}
 				}
