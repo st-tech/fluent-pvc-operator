@@ -175,6 +175,9 @@ var _ = Describe("Pod Mutation Webhook", func() {
 			Expect(err).Should(Succeed())
 			Expect(b.Finalizers).Should(ContainElement(constants.FluentPVCBindingFinalizerName))
 
+			Expect(mutPod.Labels).ShouldNot(BeEmpty())
+			Expect(mutPod.Labels[constants.PodLabelFluentPVCBindingName]).Should(BeEquivalentTo(b.Name))
+
 			bOwner := metav1.GetControllerOf(b)
 			Expect(bOwner.APIVersion).Should(BeEquivalentTo(fluentpvcv1alpha1.GroupVersion.String()))
 			Expect(bOwner.Kind).Should(BeEquivalentTo("FluentPVC"))

@@ -11,6 +11,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -181,14 +182,35 @@ func (r *fluentPVCBindingReconciler) Reconcile(ctx context.Context, req ctrl.Req
 func (r *fluentPVCBindingReconciler) fulfillFluentPVCBindingPod(ctx context.Context, b *fluentpvcv1alpha1.FluentPVCBinding, pod *corev1.Pod) (bool, error) {
 	logger := ctrl.LoggerFrom(ctx).WithName("fluentPVCBindingReconciler").WithName("fulfillFluentPVCBindingPod")
 	podFound := true
-	if err := r.Get(ctx, client.ObjectKey{Namespace: b.Namespace, Name: b.Spec.Pod.Name}, pod); err != nil {
-		if apierrors.IsNotFound(err) {
-			podFound = false
-		} else {
+	if b.Spec.Pod.Name == "" {
+		// NOTE: Pods created by Deployments don't have the Name when the webhook is invoked,
+		//       so use a label for FluentPVCBinding to find it.
+		pods := &corev1.PodList{}
+		if err := r.List(ctx, pods, &client.ListOptions{
+			Namespace: b.Namespace,
+			LabelSelector: labels.SelectorFromSet(map[string]string{
+				constants.PodLabelFluentPVCBindingName: b.Name,
+			}),
+		}); err != nil {
 			return false, xerrors.Errorf("Unexpected error occurred.: %w", err)
 		}
+		if len(pods.Items) == 0 {
+			podFound = false
+		} else if len(pods.Items) != 1 {
+			return false, xerrors.New(fmt.Sprintf("Illegal number of pods(n=%d) is found.", len(pods.Items)))
+		} else {
+			pods.Items[0].DeepCopyInto(pod)
+		}
+	} else {
+		if err := r.Get(ctx, client.ObjectKey{Namespace: b.Namespace, Name: b.Spec.Pod.Name}, pod); err != nil {
+			if apierrors.IsNotFound(err) {
+				podFound = false
+			} else {
+				return false, xerrors.Errorf("Unexpected error occurred.: %w", err)
+			}
+		}
 	}
-	if podFound && b.Spec.Pod.UID == "" {
+	if podFound && (b.Spec.Pod.UID == "" || b.Spec.Pod.Name == "") {
 		// NOTE: When the pod_webhook is invoked, the pod does not have a UID, so it is an empty string.
 		//       Therefore, the first pod that is found with an empty UID is considered to be the target.
 		if err := r.fillPodUID(ctx, b, pod); err != nil {
