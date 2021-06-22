@@ -71,15 +71,11 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 		"%s-%s-%s",
 		fpvc.Name, hashutils.ComputeHash(fpvc, nil), hashutils.ComputeHash(pod, nil),
 	)
-	namespace := corev1.NamespaceDefault
-	if pod.Namespace != "" {
-		namespace = pod.Namespace
-	}
 
-	logger.Info(fmt.Sprintf("CreateOrUpdate PVC='%s'.", name))
+	logger.Info(fmt.Sprintf("CreateOrUpdate PVC='%s'.(namespace='%s')", name, req.Namespace))
 	pvc := &corev1.PersistentVolumeClaim{}
 	pvc.SetName(name)
-	pvc.SetNamespace(namespace)
+	pvc.SetNamespace(req.Namespace)
 	if _, err := ctrl.CreateOrUpdate(ctx, m, pvc, func() error {
 		pvc.Spec = *fpvc.Spec.PVCSpecTemplate.DeepCopy()
 		controllerutil.AddFinalizer(pvc, constants.PVCFinalizerName)
@@ -88,14 +84,14 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 		// return ctrl.SetControllerReference(b, pvc, m.Scheme())
 		return nil
 	}); err != nil {
-		logger.Error(err, fmt.Sprintf("Cannot CreateOrUpdate PVC='%s'.", name))
+		logger.Error(err, fmt.Sprintf("Cannot CreateOrUpdate PVC='%s'.(namespace='%s')", name, req.Namespace))
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
 
-	logger.Info(fmt.Sprintf("CreateOrUpdate FluentPVCBinding='%s'.", name))
+	logger.Info(fmt.Sprintf("CreateOrUpdate FluentPVCBinding='%s'.(namespace='%s')", name, req.Namespace))
 	b := &fluentpvcv1alpha1.FluentPVCBinding{}
 	b.SetName(name)
-	b.SetNamespace(namespace)
+	b.SetNamespace(req.Namespace)
 	if _, err := ctrl.CreateOrUpdate(ctx, m, b, func() error {
 		b.SetFluentPVC(fpvc)
 		b.SetPod(pod)
