@@ -187,11 +187,11 @@ func deletePVC(ctx context.Context, c client.Client, name string, namespace stri
 		if err := c.Update(ctx, pvc); client.IgnoreNotFound(err) != nil {
 			return err
 		}
-		if pvc.Status.Phase == corev1.ClaimBound {
-			if err := deletePV(ctx, c, pvc.Spec.VolumeName, pvc.Namespace); err != nil {
-				return err
-			}
+		// if pvc.Status.Phase == corev1.ClaimBound {
+		if err := deletePV(ctx, c, pvc.Spec.VolumeName, pvc.Namespace); err != nil {
+			return err
 		}
+		// }
 	}
 	if err := c.Delete(ctx, pvc, client.GracePeriodSeconds(0)); client.IgnoreNotFound(err) != nil {
 		return err
@@ -226,15 +226,15 @@ var _ = Describe("pod_controller", func() {
 		Eventually(func() error { return deleteFluentPVC(ctx, k8sClient, testFluentPVCNameDeletePodFalse) }, 10).Should(Succeed())
 		Eventually(func() error { return deleteFluentPVC(ctx, k8sClient, testFluentPVCNameSidecarFailed) }, 10).Should(Succeed())
 		{
-			err := k8sClient.Create(ctx, generateFluentPVCForTest(testFluentPVCNameDefault, testSidecarContainerName, true, []string{"sh", "-c", "sleep 5"}, []string{"echo", "test"}))
+			err := k8sClient.Create(ctx, generateFluentPVCForTest(testFluentPVCNameDefault, testSidecarContainerName, true, []string{"sh", "-c", "sleep 10"}, []string{"sh", "-c", "sleep 10"}))
 			Expect(err).NotTo(HaveOccurred())
 		}
 		{
-			err := k8sClient.Create(ctx, generateFluentPVCForTest(testFluentPVCNameDeletePodFalse, testSidecarContainerName, false, []string{"sh", "-c", "sleep 5; exit 1"}, []string{"echo", "test"}))
+			err := k8sClient.Create(ctx, generateFluentPVCForTest(testFluentPVCNameDeletePodFalse, testSidecarContainerName, false, []string{"sh", "-c", "sleep 10; exit 1"}, []string{"sh", "-c", "sleep 10"}))
 			Expect(err).NotTo(HaveOccurred())
 		}
 		{
-			err := k8sClient.Create(ctx, generateFluentPVCForTest(testFluentPVCNameSidecarFailed, testSidecarContainerName, true, []string{"sh", "-c", "sleep 5; exit 1"}, []string{"echo", "test"}))
+			err := k8sClient.Create(ctx, generateFluentPVCForTest(testFluentPVCNameSidecarFailed, testSidecarContainerName, true, []string{"sh", "-c", "sleep 10; exit 1"}, []string{"sh", "-c", "sleep 10"}))
 			Expect(err).NotTo(HaveOccurred())
 		}
 	})
