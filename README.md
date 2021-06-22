@@ -190,7 +190,7 @@ $ make docker-build
 ### Load the image into the kind cluster
 
 ```sh
-$ kind load docker-image
+$ kind load docker-image fluent-pvc-operator:development
 ```
 
 ### Deploy fluent-pvc-operator
