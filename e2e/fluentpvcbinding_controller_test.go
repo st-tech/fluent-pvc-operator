@@ -23,12 +23,17 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 		if err := k8sClient.Create(ctx, generateFluentPVCForTest(testFluentPVCNameDefault, testSidecarContainerName, true, []string{"sh", "-c", "sleep 10"}, []string{"sh", "-c", "sleep 10"})); err != nil {
 			Expect(err).NotTo(HaveOccurred())
 		}
+		waitUntilFluentPVCIsFound(ctx, k8sClient, testFluentPVCNameDefault)
+
 		if err := k8sClient.Create(ctx, generateFluentPVCForTest(testFluentPVCNameSidecarSleepLong, testSidecarContainerName, true, []string{"sh", "-c", "sleep 100"}, []string{"sh", "-c", "sleep 10"})); err != nil {
 			Expect(err).ShouldNot(HaveOccurred())
 		}
+		waitUntilFluentPVCIsFound(ctx, k8sClient, testFluentPVCNameSidecarSleepLong)
+
 		if err := k8sClient.Create(ctx, generateFluentPVCForTest(testFluentPVCNameFinalizerJobFailed, testSidecarContainerName, true, []string{"sh", "-c", "sleep 10"}, []string{"sh", "-c", "sleep 10; exit 1"})); err != nil {
 			Expect(err).ShouldNot(HaveOccurred())
 		}
+		waitUntilFluentPVCIsFound(ctx, k8sClient, testFluentPVCNameFinalizerJobFailed)
 	})
 	AfterEach(func() {
 		pod := &corev1.Pod{}
@@ -44,38 +49,27 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 	})
 	Context("the pod is running and the pvc is bound", func() {
 		BeforeEach(func() {
-			Eventually(func() error {
-				fpvc := &fluentpvcv1alpha1.FluentPVC{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Name: testFluentPVCNameSidecarSleepLong}, fpvc); err != nil {
-					return err
-				}
-				return nil
-			}, 60).Should(Succeed())
-
 			pod := generateTestPodManifest(testPodConfig{
 				AddFluentPVCAnnotation: true,
 				FluentPVCName:          testFluentPVCNameSidecarSleepLong,
 				ContainerArgs:          []string{"sleep", "100"},
 				RestartPolicy:          corev1.RestartPolicyOnFailure,
 			})
-
-			Eventually(func() error {
-				if err := k8sClient.Create(ctx, pod); err != nil {
-					return err
-				}
-				return nil
-			}, 60).Should(Succeed())
+			if err := k8sClient.Create(ctx, pod); err != nil {
+				Expect(err).NotTo(HaveOccurred())
+			}
 		})
 		It("should have the Unknown condition when the pvc becomes claimLost", func() {
-			initBinding, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
+			b, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
 			if err != nil {
 				Expect(err).ShouldNot(HaveOccurred())
 			}
+			bindingName := b.Name
 
 			By("checking that the pvc/pv and the binding are ready.")
 			Eventually(func() error {
 				pvc := &corev1.PersistentVolumeClaim{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, pvc); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, pvc); err != nil {
 					return err
 				}
 				if pvc.Status.Phase != corev1.ClaimBound {
@@ -88,7 +82,7 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 				}
 
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, b); err != nil {
 					return err
 				}
 				if !b.IsConditionReady() {
@@ -99,7 +93,7 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 
 			By("deleting the persistent volume.")
 			pvc := &corev1.PersistentVolumeClaim{}
-			if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, pvc); err != nil {
+			if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, pvc); err != nil {
 				Expect(err).ShouldNot(HaveOccurred())
 			}
 			if err := deletePV(ctx, k8sClient, pvc.Spec.VolumeName, testNamespace); err != nil {
@@ -109,7 +103,7 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 			By("checking that the binding has the Unknown condition.")
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, b); err != nil {
 					return err
 				}
 				if !b.IsConditionUnknown() {
@@ -119,15 +113,16 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 			}, 60).Should(Succeed())
 		})
 		It("should have the Unknown condition when the pvc and the pod are deleted", func() {
-			initBinding, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
+			b, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
 			if err != nil {
 				Expect(err).ShouldNot(HaveOccurred())
 			}
+			bindingName := b.Name
 
 			By("checking that the pvc and the binding are ready.")
 			Eventually(func() error {
 				pvc := &corev1.PersistentVolumeClaim{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, pvc); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, pvc); err != nil {
 					return err
 				}
 				if pvc.Status.Phase != corev1.ClaimBound {
@@ -135,7 +130,7 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 				}
 
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, b); err != nil {
 					return err
 				}
 				if !b.IsConditionReady() {
@@ -145,7 +140,7 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 			}, 60).Should(Succeed())
 
 			By("deleting the pvc.")
-			if err := deletePVC(ctx, k8sClient, initBinding.Name, testNamespace); err != nil {
+			if err := deletePVC(ctx, k8sClient, bindingName, testNamespace); err != nil {
 				Expect(err).ShouldNot(HaveOccurred())
 			}
 
@@ -160,7 +155,7 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 			By("checking that the binding has the Unknown condition.")
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, b); err != nil {
 					return err
 				}
 				if !b.IsConditionUnknown() {
@@ -170,10 +165,11 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 			}, 60).Should(Succeed())
 		})
 		It("should have the OutOfUse condition when the pod is deleted", func() {
-			initBinding, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
+			b, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
 			if err != nil {
 				Expect(err).ShouldNot(HaveOccurred())
 			}
+			bindingName := b.Name
 
 			By("checking that the pvc and the binding are ready.")
 			Eventually(func() error {
@@ -191,7 +187,7 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 				}
 
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, b); err != nil {
 					return err
 				}
 				if !b.IsConditionReady() {
@@ -211,7 +207,7 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 			By("checking that the binding has the OutOfUse condition.")
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, b); err != nil {
 					return err
 				}
 				if !b.IsConditionOutOfUse() {
@@ -223,33 +219,22 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 	})
 	Context("the pod is succeeded and the pvc is bound", func() {
 		BeforeEach(func() {
-			Eventually(func() error {
-				fpvc := &fluentpvcv1alpha1.FluentPVC{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Name: testFluentPVCNameDefault}, fpvc); err != nil {
-					return err
-				}
-				return nil
-			}, 60).Should(Succeed())
-
 			pod := generateTestPodManifest(testPodConfig{
 				AddFluentPVCAnnotation: true,
 				FluentPVCName:          testFluentPVCNameDefault,
 				ContainerArgs:          []string{"sleep", "10"},
 				RestartPolicy:          corev1.RestartPolicyOnFailure,
 			})
-
-			Eventually(func() error {
-				if err := k8sClient.Create(ctx, pod); err != nil {
-					return err
-				}
-				return nil
-			}, 60).Should(Succeed())
+			if err := k8sClient.Create(ctx, pod); err != nil {
+				Expect(err).ShouldNot(HaveOccurred())
+			}
 		})
 		It("should have the OutOfUse condition when the pod is succeeded", func() {
-			initBinding, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
+			b, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
 			if err != nil {
 				Expect(err).ShouldNot(HaveOccurred())
 			}
+			bindingName := b.Name
 
 			By("checking that the pvc and the binding are ready.")
 			Eventually(func() error {
@@ -267,7 +252,7 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 				}
 
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, b); err != nil {
 					return err
 				}
 				if !b.IsConditionReady() {
@@ -279,7 +264,7 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 			By("checking that the binding has the OutOfUse condition.")
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, b); err != nil {
 					return err
 				}
 				if !b.IsConditionOutOfUse() {
@@ -291,33 +276,22 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 	})
 	Context("the pod is failed and the pvc is bound", func() {
 		BeforeEach(func() {
-			Eventually(func() error {
-				fpvc := &fluentpvcv1alpha1.FluentPVC{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Name: testFluentPVCNameDefault}, fpvc); err != nil {
-					return err
-				}
-				return nil
-			}, 60).Should(Succeed())
-
 			pod := generateTestPodManifest(testPodConfig{
 				AddFluentPVCAnnotation: true,
 				FluentPVCName:          testFluentPVCNameDefault,
 				ContainerArgs:          []string{"sh", "-c", "sleep 10; exit 1"},
 				RestartPolicy:          corev1.RestartPolicyNever,
 			})
-
-			Eventually(func() error {
-				if err := k8sClient.Create(ctx, pod); err != nil {
-					return err
-				}
-				return nil
-			}, 60).Should(Succeed())
+			if err := k8sClient.Create(ctx, pod); err != nil {
+				Expect(err).ShouldNot(HaveOccurred())
+			}
 		})
 		It("should have the OutOfUse condition when the pod is failed and is not restarted", func() {
-			initBinding, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
+			b, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
 			if err != nil {
 				Expect(err).ShouldNot(HaveOccurred())
 			}
+			bindingName := b.Name
 
 			By("checking that the pvc and the binding are ready.")
 			Eventually(func() error {
@@ -335,7 +309,7 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 				}
 
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, b); err != nil {
 					return err
 				}
 				if !b.IsConditionReady() {
@@ -347,7 +321,7 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 			By("checking that the binding has the OutOfUse condition.")
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, b); err != nil {
 					return err
 				}
 				if !b.IsConditionOutOfUse() {
@@ -360,13 +334,6 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 	Context("the binding is not ready", func() {
 		It("should continue to be not Ready when the pod is deleted", func() {
 			By("creating the pod.")
-			Eventually(func() error {
-				fpvc := &fluentpvcv1alpha1.FluentPVC{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Name: testFluentPVCNameDefault}, fpvc); err != nil {
-					return err
-				}
-				return nil
-			}, 60).Should(Succeed())
 			{
 				pod := generateTestPodManifest(testPodConfig{
 					AddFluentPVCAnnotation: true,
@@ -374,23 +341,21 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 					ContainerArgs:          []string{"sleep", "10"},
 					RestartPolicy:          corev1.RestartPolicyOnFailure,
 				})
-				Eventually(func() error {
-					if err := k8sClient.Create(ctx, pod); err != nil {
-						return err
-					}
-					return nil
-				}, 60).Should(Succeed())
+				if err := k8sClient.Create(ctx, pod); err != nil {
+					Expect(err).ShouldNot(HaveOccurred())
+				}
 			}
 
-			initBinding, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
+			b, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
 			if err != nil {
 				Expect(err).ShouldNot(HaveOccurred())
 			}
+			bindingName := b.Name
 
 			By("checking that the binding is not ready.")
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, b); err != nil {
 					return err
 				}
 				if b.IsConditionReady() {
@@ -410,7 +375,7 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 			By("checking that the binding continues to be not Ready.")
 			Consistently(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, b); err != nil {
 					return err
 				}
 				if b.IsConditionReady() {
@@ -427,22 +392,20 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 				ContainerArgs:          []string{"sleep", "10"},
 				RestartPolicy:          corev1.RestartPolicyOnFailure,
 			})
-			Eventually(func() error {
-				if err := k8sClient.Create(ctx, pod); err != nil {
-					return err
-				}
-				return nil
-			}, 60).Should(Succeed())
+			if err := k8sClient.Create(ctx, pod); err != nil {
+				Expect(err).ShouldNot(HaveOccurred())
+			}
 
-			initBinding, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
+			b, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
 			if err != nil {
 				Expect(err).ShouldNot(HaveOccurred())
 			}
+			bindingName := b.Name
 
 			By("checking that the binding is Ready.")
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, b); err != nil {
 					return err
 				}
 				if !b.IsConditionReady() {
@@ -454,38 +417,27 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 	})
 	Context("the binding is OutOfUse", func() {
 		BeforeEach(func() {
-			Eventually(func() error {
-				fpvc := &fluentpvcv1alpha1.FluentPVC{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Name: testFluentPVCNameDefault}, fpvc); err != nil {
-					return err
-				}
-				return nil
-			}, 60).Should(Succeed())
-
 			pod := generateTestPodManifest(testPodConfig{
 				AddFluentPVCAnnotation: true,
 				FluentPVCName:          testFluentPVCNameDefault,
 				ContainerArgs:          []string{"sleep", "10"},
 				RestartPolicy:          corev1.RestartPolicyOnFailure,
 			})
-
-			Eventually(func() error {
-				if err := k8sClient.Create(ctx, pod); err != nil {
-					return err
-				}
-				return nil
-			}, 60).Should(Succeed())
+			if err := k8sClient.Create(ctx, pod); err != nil {
+				Expect(err).ShouldNot(HaveOccurred())
+			}
 		})
 		It("should have the FinalizerJobApplied condition when the finalizer job is applied", func() {
-			initBinding, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
+			b, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
 			if err != nil {
 				Expect(err).ShouldNot(HaveOccurred())
 			}
+			bindingName := b.Name
 
 			By("checking that the binding has the OutOfUse condition.")
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, b); err != nil {
 					return err
 				}
 				if !b.IsConditionOutOfUse() {
@@ -497,7 +449,7 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 			By("checking that the binding has the FinalizerJobApplied condition and the job is applied.")
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, b); err != nil {
 					return err
 				}
 				if !b.IsConditionFinalizerJobApplied() {
@@ -515,15 +467,16 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 			}, 60).Should(Succeed())
 		})
 		It("should have the Unknown condition when the pvc is deleted", func() {
-			initBinding, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
+			b, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
 			if err != nil {
 				Expect(err).ShouldNot(HaveOccurred())
 			}
+			bindingName := b.Name
 
 			By("checking that the binding has the OutOfUse condition.")
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, b); err != nil {
 					return err
 				}
 				if !b.IsConditionOutOfUse() {
@@ -533,14 +486,14 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 			}, 60).Should(Succeed())
 
 			By("deleting the pvc.")
-			if err := deletePVC(ctx, k8sClient, initBinding.Name, testNamespace); err != nil {
+			if err := deletePVC(ctx, k8sClient, bindingName, testNamespace); err != nil {
 				Expect(err).ShouldNot(HaveOccurred())
 			}
 
 			By("checking that the binding has the Unknown condition.")
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, b); err != nil {
 					return err
 				}
 				if !b.IsConditionUnknown() {
@@ -550,15 +503,16 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 			}, 60).Should(Succeed())
 		})
 		It("should have the FinalizerJobSucceeded condition when the finalizer job is completed", func() {
-			initBinding, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
+			b, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
 			if err != nil {
 				Expect(err).ShouldNot(HaveOccurred())
 			}
+			bindingName := b.Name
 
 			By("checking that the binding has the FinalizerJobApplied condition.")
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, b); err != nil {
 					return err
 				}
 				if !b.IsConditionFinalizerJobApplied() {
@@ -570,7 +524,7 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 			By("checking that the binding has the FinalizerJobSucceeded condition and the job is completed.")
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, b); err != nil {
 					return err
 				}
 				if !b.IsConditionFinalizerJobSucceeded() {
@@ -593,15 +547,16 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 			}, 60).Should(Succeed())
 		})
 		It("should have the FinalizerJobSucceeded condition even if the binding is deleted after the finalizer job applied", func() {
-			initBinding, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
+			b, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
 			if err != nil {
 				Expect(err).ShouldNot(HaveOccurred())
 			}
+			bindingName := b.Name
 
 			By("checking that the binding has the FinalizerJobApplied condition.")
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, b); err != nil {
 					return err
 				}
 				if !b.IsConditionFinalizerJobApplied() {
@@ -611,14 +566,14 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 			}, 60).Should(Succeed())
 
 			By("deleting the binding.")
-			if err := k8sClient.Delete(ctx, initBinding); err != nil {
+			if err := k8sClient.Delete(ctx, b); err != nil {
 				Expect(err).ShouldNot(HaveOccurred())
 			}
 
 			By("checking that the binding has the FinalizerJobSucceeded condition.")
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, b); err != nil {
 					return err
 				}
 				if !b.IsConditionFinalizerJobSucceeded() {
@@ -629,15 +584,16 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 
 		})
 		It("should clean up the pvc and the binding itseld after FinalizerJobSucceeded condition", func() {
-			initBinding, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
+			b, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
 			if err != nil {
 				Expect(err).ShouldNot(HaveOccurred())
 			}
+			bindingName := b.Name
 
 			By("checking that the binding has the FinalizerJobSucceeded condition and the job is completed.")
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, b); err != nil {
 					return err
 				}
 				if !b.IsConditionFinalizerJobSucceeded() {
@@ -657,7 +613,7 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 			By("checking that the binding and the pvc are removed.")
 			Eventually(func() error {
 				pvc := &corev1.PersistentVolumeClaim{}
-				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, pvc)
+				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, pvc)
 				if err == nil {
 					return errors.New("PVC is still exist.")
 				}
@@ -666,7 +622,7 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 				}
 
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
-				err = k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b)
+				err = k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, b)
 				if err == nil {
 					return errors.New("Binding is still exist.")
 				}
@@ -677,15 +633,16 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 			}, 60).Should(Succeed())
 		})
 		It("should have the OutOfUse condition when the finalizer job is deleted", func() {
-			initBinding, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
+			b, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
 			if err != nil {
 				Expect(err).ShouldNot(HaveOccurred())
 			}
+			bindingName := b.Name
 
 			By("checking that the binding has the FinalizerJobApplied condition.")
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, b); err != nil {
 					return err
 				}
 				if !b.IsConditionFinalizerJobApplied() {
@@ -723,7 +680,7 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 				Expect(err).ShouldNot(HaveOccurred())
 			}
 			for _, p := range pods.Items {
-				if p.Labels["job-name"] == initBinding.Name {
+				if p.Labels["job-name"] == bindingName {
 					if err := k8sClient.Delete(ctx, &p); err != nil {
 						Expect(err).ShouldNot(HaveOccurred())
 					}
@@ -733,7 +690,7 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 			By("checking that the binding has the OutOfUse condition and the job is deleted.")
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, b); err != nil {
 					return err
 				}
 				if !b.IsConditionOutOfUse() {
@@ -746,15 +703,17 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 			}, 60).Should(Succeed())
 		})
 		It("should have the Unknown condition when the multiple finalizer job are found", func() {
-			initBinding, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
+			b, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
 			if err != nil {
 				Expect(err).ShouldNot(HaveOccurred())
 			}
+			bindingName := b.Name
+			bindingNamespace := b.Namespace
 
 			By("checking that the binding has the FinalizerJobApplied condition.")
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, b); err != nil {
 					return err
 				}
 				if !b.IsConditionFinalizerJobApplied() {
@@ -766,7 +725,7 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 			By("applying the unnecessary finalizer job")
 			j := &batchv1.Job{}
 			j.SetName("test-finalizer-job")
-			j.SetNamespace(initBinding.Namespace)
+			j.SetNamespace(bindingNamespace)
 			j.Spec = batchv1.JobSpec{
 				BackoffLimit: pointer.Int32Ptr(0),
 				Template: corev1.PodTemplateSpec{
@@ -782,7 +741,7 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 					},
 				},
 			}
-			ctrl.SetControllerReference(initBinding, j, k8sClient.Scheme())
+			ctrl.SetControllerReference(b, j, k8sClient.Scheme())
 			if err := k8sClient.Create(ctx, j); err != nil {
 				Expect(err).ShouldNot(HaveOccurred())
 			}
@@ -790,7 +749,7 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 			By("checking that the binding has the Unknown condition and the multiple finalizer job are found.")
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, b); err != nil {
 					return err
 				}
 				if !b.IsConditionUnknown() {
@@ -810,38 +769,27 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 	})
 	Context("the finalizer job is failed", func() {
 		BeforeEach(func() {
-			Eventually(func() error {
-				fpvc := &fluentpvcv1alpha1.FluentPVC{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Name: testFluentPVCNameFinalizerJobFailed}, fpvc); err != nil {
-					return err
-				}
-				return nil
-			}, 60).Should(Succeed())
-
 			pod := generateTestPodManifest(testPodConfig{
 				AddFluentPVCAnnotation: true,
 				FluentPVCName:          testFluentPVCNameFinalizerJobFailed,
 				ContainerArgs:          []string{"sleep", "10"},
 				RestartPolicy:          corev1.RestartPolicyOnFailure,
 			})
-
-			Eventually(func() error {
-				if err := k8sClient.Create(ctx, pod); err != nil {
-					return err
-				}
-				return nil
-			}, 60).Should(Succeed())
+			if err := k8sClient.Create(ctx, pod); err != nil {
+				Expect(err).ShouldNot(HaveOccurred())
+			}
 		})
 		It("should have the FinalizerJobFailed condition", func() {
-			initBinding, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
+			b, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
 			if err != nil {
 				Expect(err).ShouldNot(HaveOccurred())
 			}
+			bindingName := b.Name
 
 			By("checking that the binding has the FinalizerJobApplied condition.")
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, b); err != nil {
 					return err
 				}
 				if !b.IsConditionFinalizerJobApplied() {
@@ -853,7 +801,7 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 			By("checking that the binding has the FinalizerJobFailed condition and the job is failed.")
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, b); err != nil {
 					return err
 				}
 				if !b.IsConditionFinalizerJobFailed() {
@@ -876,15 +824,16 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 			}, 60).Should(Succeed())
 		})
 		It("should have the OutOfUse condition when the finalizer job is deleted after the job failed", func() {
-			initBinding, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
+			b, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
 			if err != nil {
 				Expect(err).ShouldNot(HaveOccurred())
 			}
+			bindingName := b.Name
 
 			By("checking that the binding has the FinalizerJobFailed condition.")
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, b); err != nil {
 					return err
 				}
 				if !b.IsConditionFinalizerJobFailed() {
@@ -919,7 +868,7 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 				Expect(err).ShouldNot(HaveOccurred())
 			}
 			for _, p := range pods.Items {
-				if p.Labels["job-name"] == initBinding.Name {
+				if p.Labels["job-name"] == bindingName {
 					if err := k8sClient.Delete(ctx, &p); err != nil {
 						Expect(err).ShouldNot(HaveOccurred())
 					}
@@ -929,7 +878,7 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 			By("checking that the binding has the OutOfUse condition and the job is deleted.")
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: initBinding.Name}, b); err != nil {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: testNamespace, Name: bindingName}, b); err != nil {
 					return err
 				}
 				if !b.IsConditionOutOfUse() {
