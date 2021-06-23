@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	. "github.com/onsi/gomega"
 	fluentpvcv1alpha1 "github.com/st-tech/fluent-pvc-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -28,6 +29,16 @@ const (
 	testPVCName                         = "test-pvc"
 	testFluentPVCBindingName            = "test-fluent-pvc-binding"
 )
+
+func waitUntilFluentPVCIsFound(ctx context.Context, c client.Client, fpvcName string) {
+	Eventually(func() error {
+		fpvc := &fluentpvcv1alpha1.FluentPVC{}
+		if err := c.Get(ctx, client.ObjectKey{Name: fpvcName}, fpvc); err != nil {
+			return err
+		}
+		return nil
+	}, 60).Should(Succeed())
+}
 
 func getFluentPVCBindingFromPod(ctx context.Context, c client.Client, podNamespace, podName string) (*fluentpvcv1alpha1.FluentPVCBinding, error) {
 	pod := &corev1.Pod{}
