@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"context"
+	"errors"
 
 	fluentpvcv1alpha1 "github.com/st-tech/fluent-pvc-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -12,6 +13,43 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
+
+const (
+	testPodName                         = "test-pod"
+	testContainerName                   = "test-container"
+	testNamespace                       = "default"
+	testFluentPVCNameDefault            = "test-fluent-pvc"
+	testFluentPVCNameDeletePodFalse     = "test-fluent-pvc-delete-false"
+	testFluentPVCNameSidecarFailed      = "test-fluent-pvc-sidecar-failed"
+	testSidecarContainerName            = "test-sidecar-container"
+	testStorageClassName                = "standard"
+	testFluentPVCNameSidecarSleepLong   = "test-fluent-pvc-sidecar-sleep-long"
+	testFluentPVCNameFinalizerJobFailed = "test-fluent-pvc-finalizer-job-failed"
+	testPVCName                         = "test-pvc"
+	testFluentPVCBindingName            = "test-fluent-pvc-binding"
+)
+
+func getFluentPVCBindingFromPod(ctx context.Context, c client.Client, podNamespace, podName string) (*fluentpvcv1alpha1.FluentPVCBinding, error) {
+	pod := &corev1.Pod{}
+	if err := c.Get(ctx, client.ObjectKey{Namespace: podNamespace, Name: podName}, pod); err != nil {
+		return nil, err
+	}
+
+	var b *fluentpvcv1alpha1.FluentPVCBinding
+	bList := &fluentpvcv1alpha1.FluentPVCBindingList{}
+	if err := c.List(ctx, bList); err != nil {
+		return nil, err
+	}
+	for _, b_ := range bList.Items {
+		if b_.Spec.Pod.Name == pod.Name {
+			b = b_.DeepCopy()
+		}
+	}
+	if b == nil {
+		return nil, errors.New("FluentPVCBinding not found")
+	}
+	return b, nil
+}
 
 func deleteFluentPVC(ctx context.Context, c client.Client, n string) error {
 	fpvc := &fluentpvcv1alpha1.FluentPVC{}

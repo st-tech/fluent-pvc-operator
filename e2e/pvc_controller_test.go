@@ -16,13 +16,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-const (
-	testFluentPVCNameSidecarSleepLong   = "test-fluent-pvc-sidecar-sleep-long"
-	testFluentPVCNameFinalizerJobFailed = "test-fluent-pvc-finalizer-job-failed"
-	testPVCName                         = "test-pvc"
-	testFluentPVCBindingName            = "test-fluent-pvc-binding"
-)
-
 var _ = Describe("pvc_controller", func() {
 	BeforeEach(func() {
 		Eventually(func() error { return deleteFluentPVC(ctx, k8sClient, testFluentPVCNameSidecarSleepLong) }, 10).Should(Succeed())
@@ -698,9 +691,6 @@ var _ = Describe("pvc_controller", func() {
 				if len(jobs.Items) != 1 {
 					return errors.New("Job not found or multiple job found.")
 				}
-				// if jobs.Items[0].Status.Failed == 0 || len(jobs.Items[0].Status.Conditions) == 0 {
-				// 	return errors.New("Job is not failed.")
-				// }
 				for _, c := range jobs.Items[0].Status.Conditions {
 					if c.Type != batchv1.JobFailed || c.Status == corev1.ConditionFalse {
 						return errors.New("Job is not failed.")

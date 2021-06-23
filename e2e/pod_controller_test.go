@@ -19,17 +19,6 @@ import (
 	podutils "github.com/st-tech/fluent-pvc-operator/utils/pod"
 )
 
-const (
-	testPodName                     = "test-pod"
-	testContainerName               = "test-container"
-	testNamespace                   = "default"
-	testFluentPVCNameDefault        = "test-fluent-pvc"
-	testFluentPVCNameDeletePodFalse = "test-fluent-pvc-delete-false"
-	testFluentPVCNameSidecarFailed  = "test-fluent-pvc-sidecar-failed"
-	testSidecarContainerName        = "test-sidecar-container"
-	testStorageClassName            = "standard"
-)
-
 func generateFluentPVCForTest(
 	testFluentPVCName string,
 	testSidecarContainerName string,
