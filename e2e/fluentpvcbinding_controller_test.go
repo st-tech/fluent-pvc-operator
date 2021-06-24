@@ -652,14 +652,6 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 				if len(jobs.Items) != 1 {
 					return errors.New("Job not found or multiple job found.")
 				}
-				if jobs.Items[0].Status.Succeeded == 0 || len(jobs.Items[0].Status.Conditions) == 0 {
-					return errors.New("Job is not completed.")
-				}
-				for _, c := range jobs.Items[0].Status.Conditions {
-					if c.Type != batchv1.JobComplete || c.Status == corev1.ConditionFalse {
-						return errors.New("Job is not completed.")
-					}
-				}
 				if err := k8sClient.Delete(ctx, &jobs.Items[0]); err != nil {
 					return err
 				}

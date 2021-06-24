@@ -531,16 +531,6 @@ var _ = Describe("pvc_controller", func() {
 					Expect(err).ShouldNot(HaveOccurred())
 				}
 			}
-			{
-				pod := &corev1.Pod{}
-				pod.SetName(testPodName)
-				pod.SetNamespace(testNamespace)
-				if err := k8sClient.Delete(ctx, pod, &client.DeleteOptions{
-					GracePeriodSeconds: pointer.Int64Ptr(0),
-				}); client.IgnoreNotFound(err) != nil {
-					Expect(err).ShouldNot(HaveOccurred())
-				}
-			}
 
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
