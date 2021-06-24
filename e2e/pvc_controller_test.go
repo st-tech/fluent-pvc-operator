@@ -16,13 +16,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-const (
-	testFluentPVCNameSidecarSleepLong   = "test-fluent-pvc-sidecar-sleep-long"
-	testFluentPVCNameFinalizerJobFailed = "test-fluent-pvc-finalizer-job-failed"
-	testPVCName                         = "test-pvc"
-	testFluentPVCBindingName            = "test-fluent-pvc-binding"
-)
-
 var _ = Describe("pvc_controller", func() {
 	BeforeEach(func() {
 		Eventually(func() error { return deleteFluentPVC(ctx, k8sClient, testFluentPVCNameSidecarSleepLong) }, 10).Should(Succeed())
@@ -41,10 +34,8 @@ var _ = Describe("pvc_controller", func() {
 		pod.SetName(testPodName)
 		if err := k8sClient.Delete(ctx, pod, &client.DeleteOptions{
 			GracePeriodSeconds: pointer.Int64Ptr(0),
-		}); err != nil {
-			if !apierrors.IsNotFound(err) {
-				Expect(err).ShouldNot(HaveOccurred())
-			}
+		}); client.IgnoreNotFound(err) != nil {
+			Expect(err).ShouldNot(HaveOccurred())
 		}
 
 		Eventually(func() error { return deleteFluentPVC(ctx, k8sClient, testFluentPVCNameSidecarSleepLong) }, 10).Should(Succeed())
@@ -540,16 +531,6 @@ var _ = Describe("pvc_controller", func() {
 					Expect(err).ShouldNot(HaveOccurred())
 				}
 			}
-			{
-				pod := &corev1.Pod{}
-				pod.SetName(testPodName)
-				pod.SetNamespace(testNamespace)
-				if err := k8sClient.Delete(ctx, pod, &client.DeleteOptions{
-					GracePeriodSeconds: pointer.Int64Ptr(0),
-				}); client.IgnoreNotFound(err) != nil {
-					Expect(err).ShouldNot(HaveOccurred())
-				}
-			}
 
 			Eventually(func() error {
 				b := &fluentpvcv1alpha1.FluentPVCBinding{}
@@ -701,8 +682,8 @@ var _ = Describe("pvc_controller", func() {
 					return errors.New("Job not found or multiple job found.")
 				}
 				for _, c := range jobs.Items[0].Status.Conditions {
-					if c.Type == batchv1.JobFailed && c.Status == corev1.ConditionFalse {
-						return errors.New("Job have not failed.")
+					if c.Type != batchv1.JobFailed || c.Status == corev1.ConditionFalse {
+						return errors.New("Job is not failed.")
 					}
 				}
 				return nil
