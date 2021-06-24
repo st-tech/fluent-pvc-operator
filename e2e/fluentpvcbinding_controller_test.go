@@ -106,9 +106,7 @@ var _ = Describe("fluentpvcbinding_controller", func() {
 		})
 		It("should have the Unknown condition when the pvc and the pod are deleted", func() {
 			b, err := getFluentPVCBindingFromPod(ctx, k8sClient, testNamespace, testPodName)
-			if err != nil {
-				Expect(err).ShouldNot(HaveOccurred())
-			}
+			Expect(err).ShouldNot(HaveOccurred())
 			bindingName := b.Name
 
 			By("checking that the pvc and the binding are ready.")
