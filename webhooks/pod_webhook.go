@@ -92,6 +92,8 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 	pvc.SetNamespace(req.Namespace)
 	pvc.Spec = *fpvc.Spec.PVCSpecTemplate.DeepCopy()
 	controllerutil.AddFinalizer(pvc, constants.PVCFinalizerName)
+	// NOTE: fluentpvcbinding does not own pvc for preventing pvc from becoming terminating when fluentpvcbinding
+	//       is deleted. This is because the finalizer job cannot mount the pvc if it is terminating.
 	if err := m.Create(ctx, pvc, &client.CreateOptions{}); err != nil {
 		logger.Error(err, fmt.Sprintf("Cannot Create PVC='%s'(namespace='%s').", name, req.Namespace))
 		return admission.Errored(http.StatusInternalServerError, err)
