@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/util/rand"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -68,12 +71,17 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 		}
 	}
 
-	// TODO: Use CollisionCount for collision avoidance.
 	// TODO: Consider too long fluent-pvc name
+	collisionCount := int32(rand.IntnRange(math.MinInt32, math.MaxInt32)) // Using the count for collision avoidance
 	name := fmt.Sprintf(
 		"%s-%s-%s",
-		fpvc.Name, hashutils.ComputeHash(fpvc, nil), hashutils.ComputeHash(pod, nil),
+		fpvc.Name, hashutils.ComputeHash(fpvc, nil), hashutils.ComputeHash(pod, &collisionCount),
 	)
+	// Check if a FluentPVCBinding with the same name exists
+	if err := m.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: name}, &fluentpvcv1alpha1.FluentPVCBinding{}); !apierrors.IsNotFound(err) {
+		logger.Error(err, fmt.Sprintf("FluentPVCBinding='%s'(namespace='%s') already exists.", name, req.Namespace))
+		return admission.Errored(http.StatusInternalServerError, err)
+	}
 
 	logger.Info(fmt.Sprintf("CreateOrUpdate PVC='%s'(namespace='%s').", name, req.Namespace))
 	pvc := &corev1.PersistentVolumeClaim{}
