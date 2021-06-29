@@ -77,12 +77,15 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 		"%s-%s-%s",
 		fpvc.Name, hashutils.ComputeHash(fpvc, nil), hashutils.ComputeHash(pod, &collisionCount),
 	)
-	// Check if a FluentPVCBinding with the same name exists
+
 	if err := m.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: name}, &fluentpvcv1alpha1.FluentPVCBinding{}); !apierrors.IsNotFound(err) {
 		logger.Error(err, fmt.Sprintf("FluentPVCBinding='%s'(namespace='%s') already exists.", name, req.Namespace))
 		return admission.Errored(http.StatusInternalServerError, err)
+	} else if err := m.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: name}, &corev1.PersistentVolumeClaim{}); !apierrors.IsNotFound(err) {
+		logger.Error(err, fmt.Sprintf("PVC='%s'(namespace='%s') already exists.", name, req.Namespace))
+		return admission.Errored(http.StatusInternalServerError, err)
 	}
-
+	// NOTE: there is only a chance to create the object with the name, NOT update
 	logger.Info(fmt.Sprintf("CreateOrUpdate PVC='%s'(namespace='%s').", name, req.Namespace))
 	pvc := &corev1.PersistentVolumeClaim{}
 	pvc.SetName(name)
