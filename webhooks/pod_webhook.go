@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/rand"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -77,14 +76,6 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 		"%s-%s-%s",
 		fpvc.Name, hashutils.ComputeHash(fpvc, nil), hashutils.ComputeHash(pod, &collisionCount),
 	)
-
-	if err := m.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: name}, &fluentpvcv1alpha1.FluentPVCBinding{}); !apierrors.IsNotFound(err) {
-		logger.Error(err, fmt.Sprintf("FluentPVCBinding='%s'(namespace='%s') already exists.", name, req.Namespace))
-		return admission.Errored(http.StatusInternalServerError, err)
-	} else if err := m.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: name}, &corev1.PersistentVolumeClaim{}); !apierrors.IsNotFound(err) {
-		logger.Error(err, fmt.Sprintf("PVC='%s'(namespace='%s') already exists.", name, req.Namespace))
-		return admission.Errored(http.StatusInternalServerError, err)
-	}
 
 	logger.Info(fmt.Sprintf("Create PVC='%s'(namespace='%s').", name, req.Namespace))
 	pvc := &corev1.PersistentVolumeClaim{}
