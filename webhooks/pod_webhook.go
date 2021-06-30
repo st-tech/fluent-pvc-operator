@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/rand"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -68,41 +70,40 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 		}
 	}
 
-	// TODO: Use CollisionCount for collision avoidance.
 	// TODO: Consider too long fluent-pvc name
+	collisionCount := int32(rand.IntnRange(math.MinInt32, math.MaxInt32)) // Using the count for collision avoidance
 	name := fmt.Sprintf(
 		"%s-%s-%s",
-		fpvc.Name, hashutils.ComputeHash(fpvc, nil), hashutils.ComputeHash(pod, nil),
+		fpvc.Name, hashutils.ComputeHash(fpvc, nil), hashutils.ComputeHash(pod, &collisionCount),
 	)
 
-	logger.Info(fmt.Sprintf("CreateOrUpdate PVC='%s'(namespace='%s').", name, req.Namespace))
+	logger.Info(fmt.Sprintf("Create PVC='%s'(namespace='%s').", name, req.Namespace))
 	pvc := &corev1.PersistentVolumeClaim{}
 	pvc.SetName(name)
 	pvc.SetNamespace(req.Namespace)
-	if _, err := ctrl.CreateOrUpdate(ctx, m, pvc, func() error {
-		pvc.Spec = *fpvc.Spec.PVCSpecTemplate.DeepCopy()
-		controllerutil.AddFinalizer(pvc, constants.PVCFinalizerName)
-		// NOTE: fluentpvcbinding does not own pvc for preventing pvc from becoming terminating when fluentpvcbinding
-		//       is deleted. This is because the finalizer job cannot mount the pvc if it is terminating.
-		// return ctrl.SetControllerReference(b, pvc, m.Scheme())
-		return nil
-	}); err != nil {
-		logger.Error(err, fmt.Sprintf("Cannot CreateOrUpdate PVC='%s'(namespace='%s').", name, req.Namespace))
+	pvc.Spec = *fpvc.Spec.PVCSpecTemplate.DeepCopy()
+	controllerutil.AddFinalizer(pvc, constants.PVCFinalizerName)
+	// NOTE: fluentpvcbinding does not own pvc for preventing pvc from becoming terminating when fluentpvcbinding
+	//       is deleted. This is because the finalizer job cannot mount the pvc if it is terminating.
+	if err := m.Create(ctx, pvc, &client.CreateOptions{}); err != nil {
+		logger.Error(err, fmt.Sprintf("Cannot Create PVC='%s'(namespace='%s').", name, req.Namespace))
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
 
-	logger.Info(fmt.Sprintf("CreateOrUpdate FluentPVCBinding='%s'(namespace='%s').", name, req.Namespace))
+	logger.Info(fmt.Sprintf("Create FluentPVCBinding='%s'(namespace='%s').", name, req.Namespace))
 	b := &fluentpvcv1alpha1.FluentPVCBinding{}
 	b.SetName(name)
 	b.SetNamespace(req.Namespace)
-	if _, err := ctrl.CreateOrUpdate(ctx, m, b, func() error {
-		b.SetFluentPVC(fpvc)
-		b.SetPod(pod)
-		b.SetPVC(pvc)
-		controllerutil.AddFinalizer(b, constants.FluentPVCBindingFinalizerName)
-		return ctrl.SetControllerReference(fpvc, b, m.Scheme())
-	}); err != nil {
-		logger.Error(err, fmt.Sprintf("Cannot CreateOrUpdate FluentPVCBinding='%s'.", name))
+	b.SetFluentPVC(fpvc)
+	b.SetPod(pod)
+	b.SetPVC(pvc)
+	controllerutil.AddFinalizer(b, constants.FluentPVCBindingFinalizerName)
+	if err := ctrl.SetControllerReference(fpvc, b, m.Scheme()); err != nil {
+		logger.Error(err, fmt.Sprintf("Cannot set FluentPVC as a Controller OwnerReference on owned for FluentPVCBinding='%s'.", name))
+		return admission.Errored(http.StatusInternalServerError, err)
+	}
+	if err := m.Create(ctx, b, &client.CreateOptions{}); err != nil {
+		logger.Error(err, fmt.Sprintf("Cannot Create FluentPVCBinding='%s'.", name))
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
 
