@@ -241,6 +241,38 @@ $ make clean-e2e-test
 $ make e2e-test
 ```
 
+## Examples
+
+The [examples](./examples) directory contains several examples that can be used as a reference for using fluent-pvc-operator.
+
+### For log-collection
+
+This example assumes the usecase where the Pod logs are collected by fluentd and sent to [Cloud Pub/Sub](https://cloud.google.com/pubsub). The Cloud Pub/Sub used in this case is launched as an Emulator in the same cluster, so there is no need to prepare anything.
+
+#### Build docker images
+
+```sh
+$ make build-example-log-collection
+```
+
+#### Load docker images into Kubernetes cluster created by kind
+
+```sh
+$ make kind-load-image-example-log-collection
+```
+
+#### Deploy the example manifests
+
+```sh
+$ make deploy-example-log-collection
+```
+
+You can deploy manifests with recreating the Kubernetes cluster by kind.
+
+```sh
+$ make clean-deploy-example-log-collection
+```
+
 ## CHANGELOG
 
 [CHANGELOG.md](./CHANGELOG.md)
