@@ -33,7 +33,7 @@ all: build
 # http://linuxcommand.org/lc3_adv_awk.php
 
 help: ## Display this help.
-	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-50s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 ##@ Development
 
@@ -149,8 +149,8 @@ cert-manager: kubectl ## Apply cert-manager into the K8s cluster specified in ~/
 	$(BINDIR)/kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v$(CERT_MANAGER_VERSION)/cert-manager.yaml
 	$(BINDIR)/kubectl wait -n cert-manager --for=condition=Available deployments --all --timeout=300s
 
-.PHONY: load-image-kind
-load-image-kind: docker-build kind ## Load the docker image into the K8s cluster launched by kind.
+.PHONY: kind-load-image-fluent-pvc-operator
+kind-load-image-fluent-pvc-operator: docker-build kind ## Load the docker image into the K8s cluster launched by kind.
 	$(BINDIR)/kind load docker-image --name $(KIND_CLUSTER_NAME) $(IMG)
 
 .PHONY: shutdown-kind
@@ -182,7 +182,7 @@ wait-fluent-pvc-operator:
 	$(BINDIR)/kubectl wait -n $(FLUENT_PVC_NAMESPACE) --for=condition=Available deployments --all --timeout=300s
 
 .PHONY: setup-e2e-test
-setup-e2e-test: launch-kind cert-manager load-image-kind deploy wait-fluent-pvc-operator
+setup-e2e-test: launch-kind cert-manager kind-load-image-fluent-pvc-operator deploy wait-fluent-pvc-operator
 
 .PHONY: clean-e2e-test
 clean-e2e-test: setup-e2e-test e2e-test ## Run e2e tests with relaunching the kind cluster.
@@ -192,3 +192,56 @@ e2e-test: ## Run e2e tests with the existing kind cluster.
 	mkdir -p ${ENVTEST_ASSETS_DIR}
 	test -f ${ENVTEST_ASSETS_DIR}/setup-envtest.sh || curl -sSLo ${ENVTEST_ASSETS_DIR}/setup-envtest.sh https://raw.githubusercontent.com/kubernetes-sigs/controller-runtime/v0.7.2/hack/setup-envtest.sh
 	source ${ENVTEST_ASSETS_DIR}/setup-envtest.sh; fetch_envtest_tools $(ENVTEST_ASSETS_DIR); setup_envtest_env $(ENVTEST_ASSETS_DIR); USE_EXISTING_CLUSTER=true go test -timeout 1800s ./e2e -coverprofile cover-e2e.out
+
+##@ Example Log Collection (User Defined Commands)
+
+.PHONY: build-example-log-collection
+build-example-log-collection: build-fluentd build-gcloud-pubsub-emulator build-sample-app ## Build all images for the log collection example.
+
+EXAMPLE_LOG_COLLECTION_DIR = examples/log-collection
+EXAMPLE_LOG_COLLECTION_IMG_PREFIX ?= fluent-pvc-operator-
+
+.PHONY: build-fluentd
+FLUENTD_IMG ?= fluentd:development
+build-fluentd: ## Build fluentd image.
+	cd $(CURDIR)/${EXAMPLE_LOG_COLLECTION_DIR}/fluentd \
+		&& docker build -t ${EXAMPLE_LOG_COLLECTION_IMG_PREFIX}${FLUENTD_IMG} .
+
+.PHONY: build-gcloud-pubsub-emulator
+GCLOUD_PUBSUB_EMULATOR_IMG ?= gcloud-pubsub-emulator:development
+build-gcloud-pubsub-emulator: ## Build gcloud-pubsub-emulator image.
+	cd $(CURDIR)/${EXAMPLE_LOG_COLLECTION_DIR}/gcloud-pubsub-emulator \
+		&& docker build -t ${EXAMPLE_LOG_COLLECTION_IMG_PREFIX}${GCLOUD_PUBSUB_EMULATOR_IMG} .
+
+.PHONY: build-sample-app
+SAMPLE_APP_IMG ?= sample-app:development
+build-sample-app: ## Build sample-app image.
+	cd $(CURDIR)/${EXAMPLE_LOG_COLLECTION_DIR}/sample-app \
+		&& docker build -t ${EXAMPLE_LOG_COLLECTION_IMG_PREFIX}${SAMPLE_APP_IMG} .
+
+.PHONY: kind-load-image-example-log-collection
+kind-load-image-example-log-collection: kind-load-image-fluentd kind-load-image-gcloud-pubsub-emulator kind-load-image-sample-app ## Load all images for the log collection example into the K8s cluster launched by kind.
+
+.PHONY: kind-load-image-fluentd
+kind-load-image-fluentd: build-fluentd  ## Load the fluentd image into the K8s cluster launched by kind.
+	$(BINDIR)/kind load docker-image --name $(KIND_CLUSTER_NAME) ${EXAMPLE_LOG_COLLECTION_IMG_PREFIX}${FLUENTD_IMG}
+
+.PHONY: kind-load-image-gcloud-pubsub-emulator
+kind-load-image-gcloud-pubsub-emulator: build-gcloud-pubsub-emulator  ## Load the gcloud-pubsub-emulator image into the K8s cluster launched by kind.
+	$(BINDIR)/kind load docker-image --name $(KIND_CLUSTER_NAME) ${EXAMPLE_LOG_COLLECTION_IMG_PREFIX}${GCLOUD_PUBSUB_EMULATOR_IMG}
+
+.PHONY: kind-load-image-sample-app
+kind-load-image-sample-app: build-sample-app  ## Load the sample-app image into the K8s cluster launched by kind.
+	$(BINDIR)/kind load docker-image --name $(KIND_CLUSTER_NAME) ${EXAMPLE_LOG_COLLECTION_IMG_PREFIX}${SAMPLE_APP_IMG}
+
+.PHONY: deploy-example-log-collection
+clean-deploy-example-log-collection: launch-kind cert-manager kind-load-image-fluent-pvc-operator deploy wait-fluent-pvc-operator kind-load-image-example-log-collection deploy-example-log-collection  ## Clean up the K8s cluster launched by kind, then deploy the log collection example.
+
+.PHONY: deploy-example-log-collection
+deploy-example-log-collection:  ## Deploy the log collection example.
+	touch $(CURDIR)/${EXAMPLE_LOG_COLLECTION_DIR}/manifests/fluentd/credential.json
+	$(KUSTOMIZE) build $(CURDIR)/${EXAMPLE_LOG_COLLECTION_DIR}/manifests | kubectl apply -f -
+
+.PHONY: undeploy-example-log-collection
+undeploy-example-log-collection:  ## Undeploy the log collection example.
+	$(KUSTOMIZE) build $(CURDIR)/${EXAMPLE_LOG_COLLECTION_DIR}/manifests | kubectl delete -f -
