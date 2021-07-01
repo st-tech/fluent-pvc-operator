@@ -1,0 +1,46 @@
+<configuration>
+  <appender name="event-logger" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+      <providers>
+        <timestamp>
+          <fieldName>client_timestamp</fieldName>
+          <pattern>yyyy-MM-dd'T'HH:mm:ss.SSSZZ</pattern>
+        </timestamp>
+        <uuid>
+          <fieldName>deduplication_id</fieldName>
+        </uuid>
+        <message>
+          <fieldName>event</fieldName>
+        </message>
+        <!-- For event_version -->
+        <!-- eventLogger.info(append("event_version", 1), "test-event", kv("key1", "value1"), kv("key2", "value2")) -->
+        <logstashMarkers/>
+        <nestedField>
+          <fieldName>payload</fieldName>
+          <providers>
+            <arguments/>
+          </providers>
+        </nestedField>
+      </providers>
+      <!-- For jackson modules like jackson-module-afterburner -->
+      <findAndRegisterJacksonModules>true</findAndRegisterJacksonModules>
+    </encoder>
+    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+      <fileNamePattern>${FLUENTD_EVENT_LOG_DIR}/event-log.%d{yyyyMMddHH}.log</fileNamePattern>
+      <!-- tune me: maxHistory -->
+      <maxHistory>6</maxHistory>
+    </rollingPolicy>
+  </appender>
+  <logger name="event-logger" level="DEBUG" additivity="false">
+    <appender-ref ref="event-logger" />
+  </logger>
+
+  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%-4relative [%thread] %-5level %logger{35} - %msg %n</pattern>
+    </encoder>
+  </appender>
+  <root level="debug">
+    <appender-ref ref="STDOUT" />
+  </root>
+</configuration>
