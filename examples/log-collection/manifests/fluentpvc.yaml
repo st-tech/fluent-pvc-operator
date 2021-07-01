@@ -1,0 +1,229 @@
+apiVersion: fluent-pvc-operator.tech.zozo.com/v1alpha1
+kind: FluentPVC
+metadata:
+  name: fluent-pvc-operator-example-log-collection
+spec:
+  pvcSpecTemplate:
+    accessModes: [ "ReadWriteOnce" ]
+    storageClassName: fluent-pvc-operator-example-log-collection
+    resources:
+      requests:
+        storage: 1Gi
+  pvcVolumeName: $(FLUENTPVC_PVC_VOLUME_NAME)
+  pvcVolumeMountPath: $(FLUENTPVC_PVC_VOLUME_MOUNT_PATH)
+  commonEnvs:
+    - name: FLUENTD_EVENT_LOG_DIR
+      value: $(FLUENTPVC_PVC_VOLUME_MOUNT_PATH)/event-log
+    - name: FLUENTD_BUFFER_DIR
+      value: $(FLUENTPVC_PVC_VOLUME_MOUNT_PATH)/fluentd/buffer
+    - name: FLUENTD_NUM_WORKERS
+      value: "1"
+    - name: FLUENTD_IN_TAIL_REFRESH_INTERVAL
+      value: "60s"
+    - name: FLUENTD_OUT_GCLOUD_PUBSUB_PROJECT
+      value: $(PUBSUB_EMULATOR_PROJECT_ID)
+    - name: FLUENTD_OUT_GCLOUD_PUBSUB_TOPIC
+      value: projects/$(PUBSUB_EMULATOR_PROJECT_ID)/topics/$(PUBSUB_EMULATOR_TOPIC)
+    - name: FLUENTD_OUT_GCLOUD_PUBSUB_ENDPOINT
+      value: $(PUBSUB_EMULATOR_HOST):$(PUBSUB_EMULATOR_PORT)
+    - name: FLUENTD_OUT_GCLOUD_PUBSUB_DEST_PROJECT
+      value: $(PUBSUB_EMULATOR_PROJECT_ID)
+    - name: FLUENTD_OUT_GCLOUD_PUBSUB_COMPRESSION
+      value: text  # to read data in gcloud-pubsub-emulator
+    - name: FLUENTD_STUCK_THRESHOLD_SECONDS
+      value: "1800"  # 30mins
+    - name: FLUENTD_BUFFER_SIZE_THRESHOLD_BYTES
+      value: "10737418240"  # 10GB
+    - name: FLUENTD_CORDON_FILE
+      value: $(FLUENTPVC_PVC_VOLUME_MOUNT_PATH)/fluentd/cordon
+    - name: FLUENTD_OUT_GCLOUD_PUBSUB_KEY
+      value: /gcloud-credentials/credential.json
+    - name: POD_NAMESPACE
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.namespace
+    - name: POD_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.name
+    - name: POD_IP
+      valueFrom:
+        fieldRef:
+          fieldPath: status.podIP
+    - name: NODE_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: spec.nodeName
+    # For emulator settings
+    - name: PUBSUB_EMULATOR_HOST
+      value: $(PUBSUB_EMULATOR_HOST):$(PUBSUB_EMULATOR_PORT)
+    - name: PUBSUB_PROJECT_ID
+      value: $(PUBSUB_EMULATOR_PROJECT_ID)
+  commonVolumeMounts:
+    - mountPath: /gcloud-credentials/
+      name: gcloud-credentials
+    - mountPath: /fluentd/etc/
+      name: fluent-conf
+  commonVolumes:
+    - name: gcloud-credentials
+      secret:
+        secretName: $(GCLOUD_CREDENTIAL_SECRET_NAME)
+    - name: fluent-conf
+      configMap:
+        name: $(FLUENT_CONF_CONFIGMAP_NAME)
+  deletePodIfSidecarContainerTerminationDetected: true
+  sidecarContainerTemplate:
+    name: sidecar-fluentd
+    image: fluent-pvc-operator-fluentd:development
+    imagePullPolicy: IfNotPresent
+    env:
+      - name: FLUENTD_FLUSH_AT_SHUTDOWN
+        value: "false"
+    startupProbe:
+      httpGet:
+        path: /api/plugins.json
+        port: 24220
+      initialDelaySeconds: 1
+      periodSeconds: 1
+      timeoutSeconds: 1
+      successThreshold: 1
+      failureThreshold: 150
+    livenessProbe:
+      exec:
+        command:
+          - bash
+          - -euo
+          - pipefail
+          - -c
+          - |
+            if [[ -n "$(find ${FLUENTD_BUFFER_DIR} -type f ! -name '*.pos')" ]]; then
+                # if some buffer file exists, these files must be newer than the threshold.
+                touch -d "${FLUENTD_STUCK_THRESHOLD_SECONDS} seconds ago" /tmp/marker-stuck
+                if [[ -n "$(find ${FLUENTD_BUFFER_DIR} -type f ! -name '*.pos' ! -newer /tmp/marker-stuck)" ]]; then
+                    echo "[WARNING] Processing is stuck ${FLUENTD_STUCK_THRESHOLD_SECONDS} seconds."
+                    exit 1
+                fi
+            fi
+            FLUENTD_BUFFER_SIZE=$(du -bs ${FLUENTD_BUFFER_DIR} | cut -f1)
+            if (( ${FLUENTD_BUFFER_SIZE} > ${FLUENTD_BUFFER_SIZE_THRESHOLD_BYTES} )); then
+                echo "[WARNING] Fluentd buffer size: '${FLUENTD_BUFFER_SIZE}' is larger than '${FLUENTD_BUFFER_SIZE_THRESHOLD_BYTES}'."
+                exit 1
+            fi
+            if [[ -f "${FLUENTD_CORDON_FILE}" ]]; then
+                echo "[WARNING] Liveness probe failure is triggered manually because '${FLUENTD_CORDON_FILE}' is found."
+                exit 1
+            fi
+      initialDelaySeconds: 1
+      periodSeconds: 60
+      timeoutSeconds: 5
+      successThreshold: 1
+      failureThreshold: 3
+    resources:
+      limits:  # TODO: tune me
+        cpu: 100m
+        memory: 50Mi
+  pvcFinalizerJobSpecTemplate:
+    template:
+      spec:
+        restartPolicy: OnFailure
+        containers:
+          - name: finalizer-fluentd
+            image: fluent-pvc-operator-fluentd:development
+            imagePullPolicy: IfNotPresent
+            env:
+              - name: FLUENTD_FLUSH_AT_SHUTDOWN
+                value: "true"
+            startupProbe:
+              httpGet:
+                path: /api/plugins.json
+                port: 24220
+              initialDelaySeconds: 1
+              periodSeconds: 1
+              timeoutSeconds: 1
+              successThreshold: 1
+              failureThreshold: 150
+            livenessProbe:
+              # NOTE: To kill the Pod gracefully
+              exec:
+                command:
+                  - bash
+                  - -euo
+                  - pipefail
+                  - -c
+                  - |
+                    curl http://${POD_IP}:24444/api/plugins.flushBuffers
+
+                    if [[ -n "$(find ${FLUENTD_BUFFER_DIR} -type f ! -name '*.pos')" ]]; then
+                        # if some buffer file exists, these files must be newer than the threshold.
+                        touch -d "${FLUENTD_STUCK_THRESHOLD_SECONDS} seconds ago" /tmp/marker-stuck
+                        if [[ -n "$(find ${FLUENTD_BUFFER_DIR} -type f ! -name '*.pos' ! -newer /tmp/marker-stuck)" ]]; then
+                            echo "[WARNING] Processing is stuck ${FLUENTD_STUCK_THRESHOLD_SECONDS} seconds."
+                            exit 0
+                        fi
+                    fi
+
+                    FLUENTD_BUFFER_SIZE=$(du -bs ${FLUENTD_BUFFER_DIR} | cut -f1)
+                    if (( ${FLUENTD_BUFFER_SIZE} > ${FLUENTD_BUFFER_SIZE_THRESHOLD_BYTES} )); then
+                        echo "[WARNING] Fluentd buffer size: '${FLUENTD_BUFFER_SIZE}' is larger than '${FLUENTD_BUFFER_SIZE_THRESHOLD_BYTES}'."
+                        exit 0
+                    fi
+
+                    if [[ -f "${FLUENTD_CORDON_FILE}" ]]; then
+                        echo "[WARNING] Liveness probe failure is triggered manually because '${FLUENTD_CORDON_FILE}' is found."
+                        exit 0
+                    fi
+
+                    echo "[INFO] Wait ${FLUENTD_IN_TAIL_REFRESH_INTERVAL} to collect all logs."
+                    sleep ${FLUENTD_IN_TAIL_REFRESH_INTERVAL}
+
+                    echo "[INFO] Shutdown this fluentd."
+                    curl http://${POD_IP}:24444/api/processes.flushBuffersAndKillWorkers
+              initialDelaySeconds: 1
+              periodSeconds: 30
+              timeoutSeconds: 180
+              successThreshold: 1
+              failureThreshold: 5
+            lifecycle:
+              preStop:
+                exec:
+                  command:
+                    - bash
+                    - -euo
+                    - pipefail
+                    - -c
+                    - |
+                      echo "[INFO] Check the stuck of fluentd processing."
+                      while true; do
+                          if [[ -n "$(find ${FLUENTD_BUFFER_DIR} -type f ! -name '*.pos')" ]]; then
+                              # if some buffer file exists, these files must be newer than the threshold.
+                              touch -d "${FLUENTD_STUCK_THRESHOLD_SECONDS} seconds ago" /tmp/marker-stuck
+                              if [[ -n "$(find ${FLUENTD_BUFFER_DIR} -type f ! -name '*.pos' ! -newer /tmp/marker-stuck)" ]]; then
+                                  echo "[WARNING] Processing is stuck ${FLUENTD_STUCK_THRESHOLD_SECONDS} seconds."
+                                  sleep 1
+                              else
+                                  break
+                              fi
+                          fi
+                      done
+                      echo "[INFO] Check the buffer size."
+                      while true; do
+                          FLUENTD_BUFFER_SIZE=$(du -bs ${FLUENTD_BUFFER_DIR} | cut -f1)
+                          if (( ${FLUENTD_BUFFER_SIZE} > ${FLUENTD_BUFFER_SIZE_THRESHOLD_BYTES} )); then
+                              echo "[WARNING] Fluentd buffer size: '${FLUENTD_BUFFER_SIZE}' is larger than '${FLUENTD_BUFFER_SIZE_THRESHOLD_BYTES}'."
+                              sleep 1
+                          else
+                              break
+                          fi
+                      done
+                      echo "[INFO] Check the cordon file."
+                      while [[ -f "${FLUENTD_CORDON_FILE}" ]]; do
+                          echo "[WARNING] Prevent to exit until '${FLUENTD_CORDON_FILE}' is deleted."
+                          sleep 1
+                      done
+                      echo "[INFO] Wait ${FLUENTD_IN_TAIL_REFRESH_INTERVAL} to collect all logs."
+                      sleep ${FLUENTD_IN_TAIL_REFRESH_INTERVAL}
+            resources:
+              limits:
+                cpu: 100m
+                memory: 50Mi
+        terminationGracePeriodSeconds: 604800 # 7days
