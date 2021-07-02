@@ -196,7 +196,7 @@ $ kind load docker-image fluent-pvc-operator:development
 ### Deploy fluent-pvc-operator
 
 ```sh
-$ make deploy
+$ make fluent-pvc-operator
 ```
 
 ### Watch the behaviors
@@ -220,8 +220,6 @@ kubectl get pod
 echo '=============='
 "
 ```
-
-
 
 ### Run unit tests
 

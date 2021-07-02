@@ -177,12 +177,12 @@ endif
 	chmod a+x $(BINDIR)/kubectl
 endif
 
-.PHONY: wait-fluent-pvc-operator
-wait-fluent-pvc-operator:
+.PHONY: fluent-pvc-operator
+fluent-pvc-operator: deploy ## Apply fluent-pvc-operator into the K8s cluster specified in ~/.kube/config.
 	$(BINDIR)/kubectl wait -n $(FLUENT_PVC_NAMESPACE) --for=condition=Available deployments --all --timeout=300s
 
 .PHONY: setup-e2e-test
-setup-e2e-test: launch-kind cert-manager kind-load-image-fluent-pvc-operator deploy wait-fluent-pvc-operator
+setup-e2e-test: launch-kind cert-manager kind-load-image-fluent-pvc-operator fluent-pvc-operator
 
 .PHONY: clean-e2e-test
 clean-e2e-test: setup-e2e-test e2e-test ## Run e2e tests with relaunching the kind cluster.
