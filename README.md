@@ -76,7 +76,7 @@ spec:
 |commonEnvs|[][EnvVar](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#environment-variables)|false|`[]`|Common Environment Variables for all containers|
 |commonVolumes|[][Volume](https://kubernetes.io/docs/reference/kubernetes-api/config-and-storage-resources/volume/#Volume)|false|`[]`|Common [Volume](https://kubernetes.io/docs/reference/kubernetes-api/config-and-storage-resources/volume/#Volume)s for all Pods|
 |commonVolumeMounts|[][VolumeMount](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#volumes-1)|false|`[]`|Common [VolumeMount](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/#volumes-1)s for all containers|
-|deletePodIfSidecarContainerTerminationDetected|boolean|false|`true`|Flag to delete Pods when the injected sidecar container anomaly is detected.|
+|deletePodIfSidecarContainerTerminationDetected|boolean|false|`true`|Flag to delete Pods when the injected sidecar container termination is detected.|
 
 sample
 
