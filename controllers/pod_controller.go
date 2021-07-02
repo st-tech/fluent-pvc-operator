@@ -3,7 +3,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"golang.org/x/xerrors"
 
@@ -83,37 +82,13 @@ func (r *podReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 			containerName, pod.Name,
 		))
 		return ctrl.Result{}, nil
-	} else if status.RestartCount == 0 && status.State.Terminated.ExitCode == 0 {
-		logger.Info(fmt.Sprintf(
-			"Container='%s' in the pod='%s' exited and the exitcode is 0.",
-			containerName, pod.Name,
-		))
-		return ctrl.Result{}, nil
-	} else if status.RestartCount != 0 && status.LastTerminationState.Terminated == nil {
-		logger.Info(fmt.Sprintf(
-			"Container='%s' in the pod='%s' restarted but LastTerminationState.Terminated is nil.",
-			containerName, pod.Name,
-		))
-		return requeueResult(10 * time.Second), nil
-	} else if status.RestartCount != 0 && status.LastTerminationState.Terminated.ExitCode == 0 {
-		logger.Info(fmt.Sprintf(
-			"Container='%s' in the pod='%s' exited and the exitcode is 0.",
-			containerName, pod.Name,
-		))
-		return ctrl.Result{}, nil
 	}
 
-	if status.RestartCount == 0 {
-		logger.Info(fmt.Sprintf(
-			"Delete the pod='%s' in the background because the container='%s' exited and the exitcode is %d.",
-			pod.Name, containerName, status.State.Terminated.ExitCode,
-		))
-	} else if status.RestartCount > 0 {
-		logger.Info(fmt.Sprintf(
-			"Delete the pod='%s' in the background because the container='%s' restarted and the exitcode is %d.",
-			pod.Name, containerName, status.LastTerminationState.Terminated.ExitCode,
-		))
-	}
+	logger.Info(fmt.Sprintf(
+		"Delete the pod='%s' in the background because the container='%s' termination is detected.",
+		pod.Name, containerName,
+	))
+
 	// TODO: Respects PodDisruptionBudget.
 	deleteOptions := deleteOptionsBackground(&pod.UID, &pod.ResourceVersion)
 	if err := r.Delete(ctx, pod, deleteOptions); client.IgnoreNotFound(err) != nil {
