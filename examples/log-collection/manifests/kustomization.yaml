@@ -1,0 +1,86 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: default
+resources:
+  - sample-app.yaml
+  - gcloud-pubsub-emulator.yaml
+  - storageclass.yaml
+  - fluentpvc.yaml
+configMapGenerator:
+  # ref. https://github.com/argoproj/argo/blob/v2.3.0/docs/workflow-controller-configmap.yaml
+  - name: fluent.conf
+    files:
+      - fluent.conf=fluentd/fluent.conf
+  - name: kustomization-example-vars
+    literals:
+      - PUBSUB_EMULATOR_PROJECT_ID=my-pubsub-project
+      - PUBSUB_EMULATOR_TOPIC=event-log
+      - PUBSUB_EMULATOR_HOST=gcloud-pubsub-emulator.default.svc.cluster.local
+      - FLUENTPVC_PVC_VOLUME_NAME=fluent-pvc
+      - FLUENTPVC_PVC_VOLUME_MOUNT_PATH=/mnt/fluent-pvc
+
+secretGenerator:
+  - name: gcloud-credential
+    files:
+      - credential.json=fluentd/credential.json
+
+configurations:
+  - varReference.yaml
+
+vars:
+  - name: FLUENT_CONF_CONFIGMAP_NAME
+    objref:
+      kind: ConfigMap
+      name: fluent.conf
+      apiVersion: v1
+    fieldref:
+      fieldpath: metadata.name
+  - name: GCLOUD_CREDENTIAL_SECRET_NAME
+    objref:
+      kind: Secret
+      name: gcloud-credential
+      apiVersion: v1
+    fieldref:
+      fieldpath: metadata.name
+  - name: PUBSUB_EMULATOR_PROJECT_ID
+    objref:
+      kind: ConfigMap
+      name: kustomization-example-vars
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.PUBSUB_EMULATOR_PROJECT_ID
+  - name: PUBSUB_EMULATOR_TOPIC
+    objref:
+      kind: ConfigMap
+      name: kustomization-example-vars
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.PUBSUB_EMULATOR_TOPIC
+  - name: PUBSUB_EMULATOR_HOST
+    objref:
+      kind: ConfigMap
+      name: kustomization-example-vars
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.PUBSUB_EMULATOR_HOST
+  - name: PUBSUB_EMULATOR_PORT
+    objref:
+      kind: Service
+      name: gcloud-pubsub-emulator
+      apiVersion: v1
+    fieldref:
+      fieldpath: spec.ports[0].port
+  - name: FLUENTPVC_PVC_VOLUME_NAME
+    objref:
+      kind: ConfigMap
+      name: kustomization-example-vars
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.FLUENTPVC_PVC_VOLUME_NAME
+  - name: FLUENTPVC_PVC_VOLUME_MOUNT_PATH
+    objref:
+      kind: ConfigMap
+      name: kustomization-example-vars
+      apiVersion: v1
+    fieldref:
+      fieldpath: data.FLUENTPVC_PVC_VOLUME_MOUNT_PATH

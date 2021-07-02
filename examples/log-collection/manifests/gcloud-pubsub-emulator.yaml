@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: gcloud-pubsub-emulator
+  name: gcloud-pubsub-emulator
+spec:
+  replicas: 1
+  minReadySeconds: 60
+  progressDeadlineSeconds: 600
+  selector:
+    matchLabels:
+      app: gcloud-pubsub-emulator
+  template:
+    metadata:
+      labels:
+        app: gcloud-pubsub-emulator
+    spec:
+      containers:
+        - name: gcloud-pubsub-emulator
+          image: fluent-pvc-operator-gcloud-pubsub-emulator:development
+          imagePullPolicy: IfNotPresent
+          startupProbe:
+            exec:
+              command:
+                - pubsub-create
+                - '--project'
+                - $(PUBSUB_EMULATOR_PROJECT_ID)
+                - '--topic'
+                - $(PUBSUB_EMULATOR_TOPIC)
+                - '--subscription'
+                - test-sub
+            initialDelaySeconds: 1
+            periodSeconds: 1
+            timeoutSeconds: 1
+            successThreshold: 1
+            failureThreshold: 150
+          env:
+            - name: PUBSUB_EMULATOR_HOST
+              value: localhost:$(PUBSUB_EMULATOR_PORT)
+            - name: PUBSUB_PROJECT_ID
+              value: $(PUBSUB_EMULATOR_PROJECT_ID)
+          resources:
+            limits:
+              cpu: 100m
+              memory: 50Mi
+      terminationGracePeriodSeconds: 60
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gcloud-pubsub-emulator
+spec:
+  selector:
+    app: gcloud-pubsub-emulator
+  ports:
+    - protocol: TCP
+      port: 8085
+      targetPort: 8085

@@ -1,0 +1,5 @@
+rootProject.name = 'sample-app'
+
+// Enable single lock file per project.
+// https://docs.gradle.org/current/userguide/dependency_locking.html
+enableFeaturePreview('ONE_LOCKFILE_PER_PROJECT')

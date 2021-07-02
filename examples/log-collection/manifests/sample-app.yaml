@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: sample-app
+  name: sample-app
+spec:
+  replicas: 3
+  minReadySeconds: 60
+  progressDeadlineSeconds: 600
+  selector:
+    matchLabels:
+      app: sample-app
+  template:
+    metadata:
+      labels:
+        app: sample-app
+      annotations:
+        fluent-pvc-operator.tech.zozo.com/fluent-pvc-name: fluent-pvc-operator-example-log-collection
+    spec:
+      containers:
+        - name: sample-app
+          image: fluent-pvc-operator-sample-app:development
+          imagePullPolicy: IfNotPresent
+          resources:
+            limits:
+              cpu: 100m
+              memory: 50Mi
+      terminationGracePeriodSeconds: 60

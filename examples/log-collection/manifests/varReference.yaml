@@ -1,0 +1,19 @@
+varReference:
+  - apiVersion: fluent-pvc-operator.tech.zozo.com/v1alpha1
+    kind: FluentPVC
+    path: spec/commonEnvs/value
+  - apiVersion: fluent-pvc-operator.tech.zozo.com/v1alpha1
+    kind: FluentPVC
+    path: spec/commonVolumes/secret/secretName
+  - apiVersion: fluent-pvc-operator.tech.zozo.com/v1alpha1
+    kind: FluentPVC
+    path: spec/commonVolumes/configMap/name
+  - apiVersion: fluent-pvc-operator.tech.zozo.com/v1alpha1
+    kind: FluentPVC
+    path: spec/pvcVolumeName
+  - apiVersion: fluent-pvc-operator.tech.zozo.com/v1alpha1
+    kind: FluentPVC
+    path: spec/pvcVolumeMountPath
+  - apiVersion: apps/v1
+    kind: Deployment
+    path: spec/template/spec/containers/startupProbe/exec/command
