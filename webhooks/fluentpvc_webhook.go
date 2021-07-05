@@ -13,9 +13,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
-	// "k8s.io/apimachinery/pkg/util/validation/field"
-	// batchvalidation "k8s.io/kubernetes/pkg/apis/batch/validation"
-	// corevalidation "k8s.io/kubernetes/pkg/apis/core/validation"
 )
 
 func SetupFluentPVCWebhookWithManager(mgr ctrl.Manager) error {
@@ -50,19 +47,6 @@ func (v *FluentPVCValidator) Handle(ctx context.Context, req admission.Request) 
 			return admission.Denied(fmt.Sprintf("Invalid PersistentVolumeAccessMode in FluentPVC.Spec.PVCSpecTemplate: '%s' Expect: 'ReadWriteOnce'", fpvc.Spec.PVCSpecTemplate.AccessModes))
 		}
 	}
-
-	// storageClass := &storagev1.StorageClass{}
-
-	// if err := v.Client.Get(ctx, client.ObjectKey{Name: *fpvc.Spec.PVCSpecTemplate.StorageClassName}, storageClass); err != nil {
-	// 	logger.Error(err, fmt.Sprintf("Cannot Get StorageClass with FluentPVC.Spec.PVCSpecTemplate.StorageClassName: '%s'", *fpvc.Spec.PVCSpecTemplate.StorageClassName))
-	// 	return admission.Errored(http.StatusInternalServerError, err)
-	// }
-	// if storageClass == nil {
-	// 	return admission.Denied(fmt.Sprintf("StorageClass not found with FluentPVC.Spec.PVCSpecTemplate.StorageClassName: '%s'", *fpvc.Spec.PVCSpecTemplate.StorageClassName))
-	// }
-
-	// TODO: Validating pvc/job specs
-	// validation.ValidateJobSpec(r.Spec.PVCFinalizerJobSpecTemplate, field.NewPath("spec"), corevalidation.PodValidationOptions{})
 
 	j := generateJob(fpvc)
 	if err := v.Client.Create(ctx, j, client.DryRunAll); err != nil {
@@ -110,18 +94,6 @@ func generateJob(fpvc *fluentpvcv1alpha1.FluentPVC) *batchv1.Job {
 	}
 
 	j.Spec = *fpvc.Spec.PVCFinalizerJobSpecTemplate.DeepCopy()
-
-	// for _, v := range fpvc.Spec.CommonVolumes {
-	// 	podutils.InjectOrReplaceVolume(&j.Spec.Template.Spec, v.DeepCopy())
-	// }
-	// for _, vm := range fpvc.Spec.CommonVolumeMounts {
-	// 	podutils.InjectOrReplaceVolumeMount(&j.Spec.Template.Spec, vm.DeepCopy())
-	// }
-
-	// podutils.InjectOrReplaceVolumeMount(&j.Spec.Template.Spec, &corev1.VolumeMount{
-	// 	Name:      fpvc.Spec.PVCVolumeName,
-	// 	MountPath: fpvc.Spec.PVCVolumeMountPath,
-	// })
 
 	for _, e := range fpvc.Spec.CommonEnvs {
 		podutils.InjectOrReplaceEnv(&j.Spec.Template.Spec, e.DeepCopy())
