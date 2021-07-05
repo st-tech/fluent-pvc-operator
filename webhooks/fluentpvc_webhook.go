@@ -43,7 +43,7 @@ func (v *FluentPVCValidator) Handle(ctx context.Context, req admission.Request) 
 	}
 
 	for _, m := range fpvc.Spec.PVCSpecTemplate.AccessModes {
-		if m != "ReadWriteOnce" {
+		if m != corev1.ReadWriteOnce {
 			return admission.Denied(fmt.Sprintf("Invalid PersistentVolumeAccessMode in FluentPVC.Spec.PVCSpecTemplate: '%s' Expect: 'ReadWriteOnce'", fpvc.Spec.PVCSpecTemplate.AccessModes))
 		}
 	}
@@ -70,10 +70,10 @@ func (v *FluentPVCValidator) InjectDecoder(d *admission.Decoder) error {
 
 func generatePVC(fpvc *fluentpvcv1alpha1.FluentPVC) *corev1.PersistentVolumeClaim {
 	pvc := &corev1.PersistentVolumeClaim{}
-	pvc.SetName("validation-pvc")
+	pvc.SetName(fpvc.Name)
 
 	if fpvc.Namespace == "" {
-		pvc.SetNamespace("default")
+		pvc.SetNamespace(corev1.NamespaceDefault)
 	} else {
 		pvc.SetNamespace(fpvc.Namespace)
 	}
@@ -85,10 +85,10 @@ func generatePVC(fpvc *fluentpvcv1alpha1.FluentPVC) *corev1.PersistentVolumeClai
 
 func generateJob(fpvc *fluentpvcv1alpha1.FluentPVC) *batchv1.Job {
 	j := &batchv1.Job{}
-	j.SetName("validation-job")
+	j.SetName(fpvc.Name)
 
 	if fpvc.Namespace == "" {
-		j.SetNamespace("default")
+		j.SetNamespace(corev1.NamespaceDefault)
 	} else {
 		j.SetNamespace(fpvc.Namespace)
 	}
