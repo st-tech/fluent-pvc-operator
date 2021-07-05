@@ -56,7 +56,8 @@ var _ = Describe("Pod Mutation Webhook", func() {
 				Kind:       "FluentPVC",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name: testFluentPVCName,
+				Name:      testFluentPVCName,
+				Namespace: testNamespace,
 			},
 			Spec: fluentpvcv1alpha1.FluentPVCSpec{
 				PVCSpecTemplate: corev1.PersistentVolumeClaimSpec{
@@ -80,6 +81,7 @@ var _ = Describe("Pod Mutation Webhook", func() {
 				PVCFinalizerJobSpecTemplate: batchv1.JobSpec{
 					Template: corev1.PodTemplateSpec{
 						Spec: corev1.PodSpec{
+							RestartPolicy: corev1.RestartPolicyOnFailure,
 							Containers: []corev1.Container{
 								{
 									Name:    testFinalizerContainerName,
