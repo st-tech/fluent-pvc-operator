@@ -9,6 +9,7 @@ import (
 	podutils "github.com/st-tech/fluent-pvc-operator/utils/pod"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -21,8 +22,7 @@ func SetupFluentPVCWebhookWithManager(mgr ctrl.Manager) error {
 }
 
 //+kubebuilder:webhook:path=/fluent-pvc/validate,mutating=false,failurePolicy=fail,sideEffects=None,groups=fluent-pvc-operator.tech.zozo.com,resources=fluentpvcs,verbs=create,versions=v1alpha1,name=fluent-pvc-validation-webhook.fluent-pvc-operator.tech.zozo.com,admissionReviewVersions={v1,v1beta1}
-
-//+kubebuilder:rbac:groups="storage.k8s.io",resources=storageclasses,verbs=get;list;watch;create;update;delete
+//+kubebuilder:rbac:groups="storage.k8s.io",resources=storageclasses,verbs=get;list;watch
 
 type FluentPVCValidator struct {
 	Client  client.Client
@@ -44,19 +44,47 @@ func (v *FluentPVCValidator) Handle(ctx context.Context, req admission.Request) 
 
 	for _, m := range fpvc.Spec.PVCSpecTemplate.AccessModes {
 		if m != corev1.ReadWriteOnce {
-			return admission.Denied(fmt.Sprintf("Invalid PersistentVolumeAccessMode in FluentPVC.Spec.PVCSpecTemplate: '%s' Expect: 'ReadWriteOnce'", fpvc.Spec.PVCSpecTemplate.AccessModes))
+			return admission.Denied(fmt.Sprintf("Only 'ReadWriteOnce' is acceptable for FluentPVC.spec.pvcSpecTemplate.accessModes, but '%s' is specified.", fpvc.Spec.PVCSpecTemplate.AccessModes))
 		}
 	}
 
-	j := generateJob(fpvc)
+	storageClass := &storagev1.StorageClass{}
+	if err := v.Client.Get(ctx, client.ObjectKey{Name: *fpvc.Spec.PVCSpecTemplate.StorageClassName}, storageClass); err != nil {
+		logger.Error(err, fmt.Sprintf("Cannot Get StorageClass with FluentPVC.Spec.PVCSpecTemplate.StorageClassName: '%s'", *fpvc.Spec.PVCSpecTemplate.StorageClassName))
+		return admission.Errored(http.StatusInternalServerError, err)
+	}
+
+	j := &batchv1.Job{}
+	j.SetName(fpvc.Name)
+	j.SetNamespace(corev1.NamespaceDefault)
+	j.Spec = *fpvc.Spec.PVCFinalizerJobSpecTemplate.DeepCopy()
+
+	for _, e := range fpvc.Spec.CommonEnvs {
+		podutils.InjectOrReplaceEnv(&j.Spec.Template.Spec, e.DeepCopy())
+	}
+
 	if err := v.Client.Create(ctx, j, client.DryRunAll); err != nil {
 		logger.Error(err, fmt.Sprintf("JobSpec is invalid. FluentPVC Name: '%s'", fpvc.Name))
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
 
-	pvc := generatePVC(fpvc)
+	pvc := &corev1.PersistentVolumeClaim{}
+	pvc.SetName(fpvc.Name)
+	pvc.SetNamespace(corev1.NamespaceDefault)
+	pvc.Spec = *fpvc.Spec.PVCSpecTemplate.DeepCopy()
+
 	if err := v.Client.Create(ctx, pvc, client.DryRunAll); err != nil {
 		logger.Error(err, fmt.Sprintf("PVCSpec is invalid. FluentPVC Name: '%s'", fpvc.Name))
+		return admission.Errored(http.StatusInternalServerError, err)
+	}
+
+	pod := &corev1.Pod{}
+	pod.SetName(fpvc.Name)
+	pod.SetNamespace(corev1.NamespaceDefault)
+	pod.Spec.Containers = append(pod.Spec.Containers, fpvc.Spec.SidecarContainerTemplate)
+
+	if err := v.Client.Create(ctx, pod, client.DryRunAll); err != nil {
+		logger.Error(err, fmt.Sprintf("SidecarContainerSpec is invalid. FluentPVC Name: '%s'", fpvc.Name))
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
 
@@ -66,38 +94,4 @@ func (v *FluentPVCValidator) Handle(ctx context.Context, req admission.Request) 
 func (v *FluentPVCValidator) InjectDecoder(d *admission.Decoder) error {
 	v.decoder = d
 	return nil
-}
-
-func generatePVC(fpvc *fluentpvcv1alpha1.FluentPVC) *corev1.PersistentVolumeClaim {
-	pvc := &corev1.PersistentVolumeClaim{}
-	pvc.SetName(fpvc.Name)
-
-	if fpvc.Namespace == "" {
-		pvc.SetNamespace(corev1.NamespaceDefault)
-	} else {
-		pvc.SetNamespace(fpvc.Namespace)
-	}
-
-	pvc.Spec = *fpvc.Spec.PVCSpecTemplate.DeepCopy()
-
-	return pvc
-}
-
-func generateJob(fpvc *fluentpvcv1alpha1.FluentPVC) *batchv1.Job {
-	j := &batchv1.Job{}
-	j.SetName(fpvc.Name)
-
-	if fpvc.Namespace == "" {
-		j.SetNamespace(corev1.NamespaceDefault)
-	} else {
-		j.SetNamespace(fpvc.Namespace)
-	}
-
-	j.Spec = *fpvc.Spec.PVCFinalizerJobSpecTemplate.DeepCopy()
-
-	for _, e := range fpvc.Spec.CommonEnvs {
-		podutils.InjectOrReplaceEnv(&j.Spec.Template.Spec, e.DeepCopy())
-	}
-
-	return j
 }
