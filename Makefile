@@ -37,10 +37,10 @@ help: ## Display this help.
 
 ##@ Development
 
-manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
+manifests: bin/controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 
-generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
+generate: bin/controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
 fmt: ## Run go fmt against code.
@@ -71,27 +71,21 @@ docker-push: ## Push docker image with the manager.
 
 ##@ Deployment
 
-install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
+install: manifests bin/kustomize bin/kubectl ## Install CRDs into the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/crd | kubectl apply -f -
 
-uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config.
+uninstall: manifests bin/kustomize bin/kubectl ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/crd | kubectl delete -f -
 
-deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+deploy: manifests bin/kustomize bin/kubectl ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default | kubectl apply -f -
 
-undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
+undeploy: bin/kubectl ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/default | kubectl delete -f -
 
 
-CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
-controller-gen: ## Download controller-gen locally if necessary.
-	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.4.1)
-
-KUSTOMIZE = $(shell pwd)/bin/kustomize
-kustomize: ## Download kustomize locally if necessary.
-	$(call go-get-tool,$(KUSTOMIZE),sigs.k8s.io/kustomize/kustomize/v3@v3.8.7)
+##@ Install Development Tools
 
 # go-get-tool will 'go get' any package $2 and install it to $1.
 PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
@@ -107,7 +101,22 @@ rm -rf $$TMP_DIR ;\
 }
 endef
 
-#======= END kubebuilder generated =======
+CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
+bin/controller-gen: ## Download controller-gen locally if necessary.
+	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.4.1)
+
+KUSTOMIZE = $(shell pwd)/bin/kustomize
+bin/kustomize: ## Download kustomize locally if necessary.
+	$(call go-get-tool,$(KUSTOMIZE),sigs.k8s.io/kustomize/kustomize/v3@v3.8.7)
+
+KIND = $(shell pwd)/bin/kind
+bin/kind: ## Download kind locally if necessary.
+	$(call go-get-tool,$(KIND),sigs.k8s.io/kind@v0.11.1)
+
+KUBECTL = $(shell pwd)/bin/kubectl
+bin/kubectl: ## Download kubectl locally if necessary.
+	curl --create-dirs -o $(KUBECTL) -sfL https://storage.googleapis.com/kubernetes-release/release/$(shell curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/$(shell uname -s | awk '{print tolower($0)}')/amd64/kubectl
+	chmod a+x $(KUBECTL)
 
 ##@ Development (User Defined Commands)
 
@@ -140,42 +149,24 @@ KUBERNETES_VERSION := 1.18.19
 endif
 
 .PHONY: launch-kind
-launch-kind: kind kubectl shutdown-kind ## Launch a K8s cluster by kind.
+launch-kind: bin/kind bin/kubectl shutdown-kind ## Launch a K8s cluster by kind.
 	$(BINDIR)/kind create cluster --name=$(KIND_CLUSTER_NAME) --image kindest/node:v$(KUBERNETES_VERSION)
 	$(BINDIR)/kubectl config use-context kind-$(KIND_CLUSTER_NAME)
 
 .PHONY: cert-manager
-cert-manager: kubectl ## Apply cert-manager into the K8s cluster specified in ~/.kube/config.
+cert-manager: bin/kubectl ## Apply cert-manager into the K8s cluster specified in ~/.kube/config.
 	$(BINDIR)/kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v$(CERT_MANAGER_VERSION)/cert-manager.yaml
 	$(BINDIR)/kubectl wait -n cert-manager --for=condition=Available deployments --all --timeout=300s
 
 .PHONY: kind-load-image-fluent-pvc-operator
-kind-load-image-fluent-pvc-operator: docker-build kind ## Load the docker image into the K8s cluster launched by kind.
+kind-load-image-fluent-pvc-operator: docker-build bin/kind ## Load the docker image into the K8s cluster launched by kind.
 	$(BINDIR)/kind load docker-image --name $(KIND_CLUSTER_NAME) $(IMG)
 
 .PHONY: shutdown-kind
-shutdown-kind: kind ## Shutdown a K8s cluster by kind.
+shutdown-kind: bin/kind ## Shutdown a K8s cluster by kind.
 	$(BINDIR)/kind delete cluster --name=$(KIND_CLUSTER_NAME) || true
 
-kind: ## Download kind locally if necessary.
-ifeq (,$(wildcard $(BINDIR)/kind))
-ifeq ($(shell uname),Darwin)
-	curl --create-dirs -o $(BINDIR)/kind -sfL https://kind.sigs.k8s.io/dl/v$(KIND_VERSION)/kind-darwin-amd64
-else
-	curl --create-dirs -o $(BINDIR)/kind -sfL https://kind.sigs.k8s.io/dl/v$(KIND_VERSION)/kind-linux-amd64
-endif
-	chmod a+x $(BINDIR)/kind
-endif
 
-kubectl: ## Download kubectl locally if necessary.
-ifeq (,$(wildcard $(BINDIR)/kubectl))
-ifeq ($(shell uname),Darwin)
-	curl --create-dirs -o $(BINDIR)/kubectl -sfL https://storage.googleapis.com/kubernetes-release/release/v$(KUBERNETES_VERSION)/bin/darwin/amd64/kubectl
-else
-	curl --create-dirs -o $(BINDIR)/kubectl -sfL https://storage.googleapis.com/kubernetes-release/release/v$(KUBERNETES_VERSION)/bin/linux/amd64/kubectl
-endif
-	chmod a+x $(BINDIR)/kubectl
-endif
 
 .PHONY: fluent-pvc-operator
 fluent-pvc-operator: deploy ## Apply fluent-pvc-operator into the K8s cluster specified in ~/.kube/config.
@@ -233,7 +224,7 @@ kind-load-image-sample-app: build-sample-app  ## Load the sample-app image into 
 	$(BINDIR)/kind load docker-image --name $(KIND_CLUSTER_NAME) ${EXAMPLE_LOG_COLLECTION_IMG_PREFIX}${SAMPLE_APP_IMG}
 
 .PHONY: deploy-example-log-collection
-clean-deploy-example-log-collection: launch-kind cert-manager kind-load-image-fluent-pvc-operator deploy wait-fluent-pvc-operator kind-load-image-example-log-collection deploy-example-log-collection  ## Clean up the K8s cluster launched by kind, then deploy the log collection example.
+clean-deploy-example-log-collection: launch-kind cert-manager kind-load-image-fluent-pvc-operator fluent-pvc-operator kind-load-image-example-log-collection deploy-example-log-collection  ## Clean up the K8s cluster launched by kind, then deploy the log collection example.
 
 .PHONY: deploy-example-log-collection
 deploy-example-log-collection:  ## Deploy the log collection example.
