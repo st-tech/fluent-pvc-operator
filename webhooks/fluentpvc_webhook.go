@@ -81,7 +81,7 @@ func (v *FluentPVCValidator) Handle(ctx context.Context, req admission.Request) 
 	pod := &corev1.Pod{}
 	pod.SetName(fpvc.Name)
 	pod.SetNamespace(corev1.NamespaceDefault)
-	pod.Spec.Containers = append(pod.Spec.Containers, fpvc.Spec.SidecarContainerTemplate)
+	pod.Spec.Containers = append(pod.Spec.Containers, *fpvc.Spec.SidecarContainerTemplate.DeepCopy())
 
 	if err := v.Client.Create(ctx, pod, client.DryRunAll); err != nil {
 		logger.Error(err, fmt.Sprintf("SidecarContainerSpec is invalid. FluentPVC Name: '%s'", fpvc.Name))

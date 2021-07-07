@@ -93,16 +93,13 @@ var _ = Describe("FluentPVC Validation Webhook", func() {
 	})
 	It("should create a FluentPVC when the Spec is valid.", func() {
 		ctx := context.Background()
-		{
-			fpvc := testFluentPVC.DeepCopy()
-			err := k8sClient.Create(ctx, fpvc)
-			Expect(err).Should(Succeed())
-		}
-		{
-			fpvc := &fluentpvcv1alpha1.FluentPVC{}
-			err := k8sClient.Get(ctx, client.ObjectKey{Name: testFluentPVCName}, fpvc)
-			Expect(err).Should(Succeed())
-		}
+		fpvc := testFluentPVC.DeepCopy()
+		err := k8sClient.Create(ctx, fpvc)
+		Expect(err).Should(Succeed())
+
+		fpvc = &fluentpvcv1alpha1.FluentPVC{}
+		err = k8sClient.Get(ctx, client.ObjectKey{Name: testFluentPVCName}, fpvc)
+		Expect(err).Should(Succeed())
 
 	})
 	It("should return a error when PVCSpecTemplate.AccessModes is invalid.", func() {
