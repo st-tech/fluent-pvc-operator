@@ -16,8 +16,9 @@ public class Application {
 
   public static void main(String[] args) throws InterruptedException {
     int maxLogCount =
-        Optional.ofNullable(Integer.parseInt(System.getenv("MAX_LOG_COUNT")))
-            .orElse(Integer.MAX_VALUE);
+        Integer.parseInt(
+          Optional.ofNullable(System.getenv("MAX_LOG_COUNT")).orElse(Integer.MAX_VALUE)
+        );
     int loggingIntervalMills =
         Integer.parseInt(
             Optional.ofNullable(System.getenv("LOGGING_INTERVAL_MILLS")).orElse("1000"));
