@@ -26,4 +26,13 @@ spec:
             limits:
               cpu: 100m
               memory: 50Mi
+          env:
+            - name: MAX_LOG_COUNT
+              value: "10000"
+            - name: LOGGING_INTERVAL_MILLS
+              value: "1000"
+            - name: MY_VALUE
+              value: "myValue"
+            - name: OPTIONAL_VALUE
+              value: "optionalValue"
       terminationGracePeriodSeconds: 60
