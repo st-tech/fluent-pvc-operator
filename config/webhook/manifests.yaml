@@ -41,6 +41,26 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
+      path: /fluent-pvc/validate
+  failurePolicy: Fail
+  name: fluent-pvc-validation-webhook.fluent-pvc-operator.tech.zozo.com
+  rules:
+  - apiGroups:
+    - fluent-pvc-operator.tech.zozo.com
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    resources:
+    - fluentpvcs
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
       path: /pod/validate
   failurePolicy: Fail
   name: pod-validation-webhook.fluent-pvc-operator.tech.zozo.com
