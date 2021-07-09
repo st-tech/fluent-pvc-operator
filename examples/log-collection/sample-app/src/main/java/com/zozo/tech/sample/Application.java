@@ -1,7 +1,6 @@
 package com.zozo.tech.sample;
 
 import static net.logstash.logback.argument.StructuredArguments.entries;
-import static net.logstash.logback.argument.StructuredArguments.kv;
 import static net.logstash.logback.marker.Markers.append;
 
 import java.util.HashMap;
@@ -15,32 +14,35 @@ public class Application {
   private static final Logger eventLogger = LoggerFactory.getLogger("event-logger");
 
   public static void main(String[] args) throws InterruptedException {
-    int maxLogCount =
+    int benchmarkLoggingMaxLogCount =
         Integer.parseInt(
-          Optional.ofNullable(System.getenv("MAX_LOG_COUNT")).orElse(Integer.MAX_VALUE)
-        );
-    int loggingIntervalMills =
+            Optional.ofNullable(System.getenv("BENCHMARK_LOGGING_MAX_LOG_COUNT"))
+                .orElse(String.valueOf(Integer.MAX_VALUE)));
+    int benchmarkLoggingIntervalMills =
         Integer.parseInt(
-            Optional.ofNullable(System.getenv("LOGGING_INTERVAL_MILLS")).orElse("1000"));
-    String myValue = Optional.ofNullable(System.getenv("MY_VALUE")).orElse("myValue");
-    String optionalValue =
-        Optional.ofNullable(System.getenv("OPTIONAL_VALUE")).orElse("optionalValue");
-    int i = 0;
-    while (i < maxLogCount) {
-      i++;
-      Thread.sleep(loggingIntervalMills);
+            Optional.ofNullable(System.getenv("BENCHMARK_LOGGING_INTERVAL_MILLIS")).orElse("1000"));
+    int logCount = 0;
+    while (logCount < benchmarkLoggingMaxLogCount) {
+      logCount++;
+      Thread.sleep(benchmarkLoggingIntervalMills);
 
-      Map<String, Object> myMap = new HashMap<String, Object>();
-      myMap.put("count", i);
-      myMap.put("myKey", myValue);
-      eventLogger.info(append("event_version", 1), "test-event", entries(myMap));
-      eventLogger.info(
-          append("event_version", 1),
-          "test-event",
-          kv("count", i),
-          kv("myKey", myValue),
-          kv("optionalKey", optionalValue));
-      logger.info(String.format("main: %d", i));
+      int payloadFieldCount = 0;
+      Map<String, Object> payload = new HashMap<String, Object>();
+      while (true) {
+        payloadFieldCount++;
+        Optional<String> k =
+            Optional.ofNullable(
+                System.getenv(String.format("BENCHMARK_LOGGING_PAYLOAD_KEY%d", payloadFieldCount)));
+        if (k.isEmpty()) break;
+        String v =
+            System.getenv(String.format("BENCHMARK_LOGGING_PAYLOAD_VALUE%d", payloadFieldCount));
+
+        payload.put(k.get(), v);
+      }
+
+      String eventName =
+          Optional.ofNullable(System.getenv("BENCHMARK_LOGGING_EVENT_NAME")).orElse("test-event");
+      eventLogger.info(append("event_version", 1), eventName, entries(payload));
     }
   }
 }
