@@ -18,13 +18,13 @@ public class Application {
         Integer.parseInt(
             Optional.ofNullable(System.getenv("BENCHMARK_LOGGING_MAX_LOG_COUNT"))
                 .orElse(String.valueOf(Integer.MAX_VALUE)));
-    int benchmarkLoggingIntervalMills =
+    int benchmarkLoggingIntervalMillis =
         Integer.parseInt(
             Optional.ofNullable(System.getenv("BENCHMARK_LOGGING_INTERVAL_MILLIS")).orElse("1000"));
     int logCount = 0;
     while (logCount < benchmarkLoggingMaxLogCount) {
       logCount++;
-      Thread.sleep(benchmarkLoggingIntervalMills);
+      Thread.sleep(benchmarkLoggingIntervalMillis);
 
       int payloadFieldCount = 0;
       Map<String, Object> payload = new HashMap<String, Object>();
