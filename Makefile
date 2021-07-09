@@ -71,17 +71,17 @@ docker-push: ## Push docker image with the manager.
 
 ##@ Deployment
 
-install: manifests bin/kustomize bin/kubectl ## Install CRDs into the K8s cluster specified in ~/.kube/config.
+install: manifests bin/kustomize bin/kubectl ## Install CRDs into the k8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/crd | kubectl apply -f -
 
-uninstall: manifests bin/kustomize bin/kubectl ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config.
+uninstall: manifests bin/kustomize bin/kubectl ## Uninstall CRDs from the k8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/crd | kubectl delete -f -
 
-deploy: manifests bin/kustomize bin/kubectl ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+deploy: manifests bin/kustomize bin/kubectl ## Deploy controller to the k8s cluster specified in ~/.kube/config.
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default | kubectl apply -f -
 
-undeploy: bin/kubectl ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
+undeploy: bin/kubectl ## Undeploy controller from the k8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/default | kubectl delete -f -
 
 
@@ -149,27 +149,27 @@ KUBERNETES_VERSION := 1.18.19
 endif
 
 .PHONY: launch-kind
-launch-kind: bin/kind bin/kubectl shutdown-kind ## Launch a K8s cluster by kind.
+launch-kind: bin/kind bin/kubectl shutdown-kind ## Launch a k8s cluster by kind.
 	$(BINDIR)/kind create cluster --name=$(KIND_CLUSTER_NAME) --image kindest/node:v$(KUBERNETES_VERSION)
 	$(BINDIR)/kubectl config use-context kind-$(KIND_CLUSTER_NAME)
 
 .PHONY: cert-manager
-cert-manager: bin/kubectl ## Apply cert-manager into the K8s cluster specified in ~/.kube/config.
+cert-manager: bin/kubectl ## Apply cert-manager into the k8s cluster specified in ~/.kube/config.
 	$(BINDIR)/kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v$(CERT_MANAGER_VERSION)/cert-manager.yaml
 	$(BINDIR)/kubectl wait -n cert-manager --for=condition=Available deployments --all --timeout=300s
 
 .PHONY: kind-load-image-fluent-pvc-operator
-kind-load-image-fluent-pvc-operator: docker-build bin/kind ## Load the docker image into the K8s cluster launched by kind.
+kind-load-image-fluent-pvc-operator: docker-build bin/kind ## Load the docker image into the k8s cluster launched by kind.
 	$(BINDIR)/kind load docker-image --name $(KIND_CLUSTER_NAME) $(IMG)
 
 .PHONY: shutdown-kind
-shutdown-kind: bin/kind ## Shutdown a K8s cluster by kind.
+shutdown-kind: bin/kind ## Shutdown a k8s cluster by kind.
 	$(BINDIR)/kind delete cluster --name=$(KIND_CLUSTER_NAME) || true
 
 
 
 .PHONY: fluent-pvc-operator
-fluent-pvc-operator: deploy ## Apply fluent-pvc-operator into the K8s cluster specified in ~/.kube/config.
+fluent-pvc-operator: deploy ## Apply fluent-pvc-operator into the k8s cluster specified in ~/.kube/config.
 	$(BINDIR)/kubectl wait -n $(FLUENT_PVC_NAMESPACE) --for=condition=Available deployments --all --timeout=300s
 
 .PHONY: setup-e2e-test
@@ -209,22 +209,22 @@ build-sample-app: ## Build sample-app image.
 		&& docker build -t ${EXAMPLE_LOG_COLLECTION_IMG_PREFIX}${SAMPLE_APP_IMG} .
 
 .PHONY: kind-load-image-example-log-collection
-kind-load-image-example-log-collection: kind-load-image-fluentd kind-load-image-gcloud-pubsub-emulator kind-load-image-sample-app ## Load all images for the log collection example into the K8s cluster launched by kind.
+kind-load-image-example-log-collection: kind-load-image-fluentd kind-load-image-gcloud-pubsub-emulator kind-load-image-sample-app ## Load all images for the log collection example into the k8s cluster launched by kind.
 
 .PHONY: kind-load-image-fluentd
-kind-load-image-fluentd: build-fluentd  ## Load the fluentd image into the K8s cluster launched by kind.
+kind-load-image-fluentd: build-fluentd  ## Load the fluentd image into the k8s cluster launched by kind.
 	$(BINDIR)/kind load docker-image --name $(KIND_CLUSTER_NAME) ${EXAMPLE_LOG_COLLECTION_IMG_PREFIX}${FLUENTD_IMG}
 
 .PHONY: kind-load-image-gcloud-pubsub-emulator
-kind-load-image-gcloud-pubsub-emulator: build-gcloud-pubsub-emulator  ## Load the gcloud-pubsub-emulator image into the K8s cluster launched by kind.
+kind-load-image-gcloud-pubsub-emulator: build-gcloud-pubsub-emulator  ## Load the gcloud-pubsub-emulator image into the k8s cluster launched by kind.
 	$(BINDIR)/kind load docker-image --name $(KIND_CLUSTER_NAME) ${EXAMPLE_LOG_COLLECTION_IMG_PREFIX}${GCLOUD_PUBSUB_EMULATOR_IMG}
 
 .PHONY: kind-load-image-sample-app
-kind-load-image-sample-app: build-sample-app  ## Load the sample-app image into the K8s cluster launched by kind.
+kind-load-image-sample-app: build-sample-app  ## Load the sample-app image into the k8s cluster launched by kind.
 	$(BINDIR)/kind load docker-image --name $(KIND_CLUSTER_NAME) ${EXAMPLE_LOG_COLLECTION_IMG_PREFIX}${SAMPLE_APP_IMG}
 
 .PHONY: deploy-example-log-collection
-clean-deploy-example-log-collection: launch-kind cert-manager kind-load-image-fluent-pvc-operator fluent-pvc-operator kind-load-image-example-log-collection deploy-example-log-collection  ## Clean up the K8s cluster launched by kind, then deploy the log collection example.
+clean-deploy-example-log-collection: launch-kind cert-manager kind-load-image-fluent-pvc-operator fluent-pvc-operator kind-load-image-example-log-collection deploy-example-log-collection  ## Clean up the k8s cluster launched by kind, then deploy the log collection example.
 
 .PHONY: deploy-example-log-collection
 deploy-example-log-collection:  ## Deploy the log collection example.
