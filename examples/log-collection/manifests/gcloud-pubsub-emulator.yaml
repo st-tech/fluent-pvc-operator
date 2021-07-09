@@ -40,6 +40,10 @@ spec:
               value: localhost:$(PUBSUB_EMULATOR_PORT)
             - name: PUBSUB_PROJECT_ID
               value: $(PUBSUB_EMULATOR_PROJECT_ID)
+            - name: PUBSUB_EMULATOR_TOPIC
+              value: $(PUBSUB_EMULATOR_TOPIC)
+            - name: PUBSUB_EMULATOR_SUBSCRIPTION
+              value: test-sub
           resources:
             limits:
               cpu: 100m
