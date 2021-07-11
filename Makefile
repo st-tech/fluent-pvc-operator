@@ -120,6 +120,10 @@ KIND = $(shell pwd)/bin/kind
 bin/kind: ## Download kind locally if necessary.
 	$(call go-get-tool,$(KIND),sigs.k8s.io/kind@v0.11.1)
 
+GINKGO = $(shell pwd)/bin/ginkgo
+bin/ginkgo: ## Download ginkgo locally if necessary.
+	$(call go-get-tool,$(GINKGO),github.com/onsi/ginkgo/ginkgo@v1.16.4)
+
 KUBECTL = $(shell pwd)/bin/kubectl
 bin/kubectl: ## Download kubectl locally if necessary.
 	curl --create-dirs -o $(KUBECTL) -sfL https://storage.googleapis.com/kubernetes-release/release/$(shell curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/$(shell uname -s | awk '{print tolower($0)}')/amd64/kubectl
