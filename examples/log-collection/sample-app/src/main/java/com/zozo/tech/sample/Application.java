@@ -22,21 +22,22 @@ public class Application {
   private static String eventName =
       Optional.ofNullable(System.getenv("BENCHMARK_LOGGING_EVENT_NAME")).orElse("test-event");
   private static Map<String, Object> payload = new HashMap<String, Object>();
+
   static {
-      int payloadFieldCount = 0;
-      while (true) {
-        payloadFieldCount++;
-        Optional<String> k =
-            Optional.ofNullable(
-                System.getenv(String.format("BENCHMARK_LOGGING_PAYLOAD_KEY%d", payloadFieldCount)));
-        if (k.isEmpty()) break;
-        String v = System.getenv(String.format("BENCHMARK_LOGGING_PAYLOAD_VALUE%d", payloadFieldCount));
-        payload.put(k.get(), v);
-      }
+    int payloadFieldCount = 0;
+    while (true) {
+      payloadFieldCount++;
+      Optional<String> k =
+          Optional.ofNullable(
+              System.getenv(String.format("BENCHMARK_LOGGING_PAYLOAD_KEY%d", payloadFieldCount)));
+      if (k.isEmpty()) break;
+      String v =
+          System.getenv(String.format("BENCHMARK_LOGGING_PAYLOAD_VALUE%d", payloadFieldCount));
+      payload.put(k.get(), v);
+    }
   }
 
   public static void main(String[] args) throws InterruptedException {
-
     int logCount = 0;
     while (logCount < benchmarkLoggingMaxLogCount) {
       logCount++;
