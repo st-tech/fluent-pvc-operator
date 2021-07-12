@@ -12,6 +12,8 @@ spec:
   pvcVolumeName: $(FLUENTPVC_PVC_VOLUME_NAME)
   pvcVolumeMountPath: $(FLUENTPVC_PVC_VOLUME_MOUNT_PATH)
   commonEnvs:
+    - name: ENV
+      value: dev
     - name: FLUENTD_EVENT_LOG_DIR
       value: $(FLUENTPVC_PVC_VOLUME_MOUNT_PATH)/event-log
     - name: FLUENTD_BUFFER_DIR

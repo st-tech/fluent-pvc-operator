@@ -190,13 +190,13 @@ $ make docker-build
 ### Load the image into the kind cluster
 
 ```sh
-$ kind load docker-image fluent-pvc-operator:development
+$ make kind-load-image-fluent-pvc-operator
 ```
 
 ### Deploy fluent-pvc-operator
 
 ```sh
-$ make deploy
+$ make fluent-pvc-operator
 ```
 
 ### Watch the behaviors
@@ -221,8 +221,6 @@ echo '=============='
 "
 ```
 
-
-
 ### Run unit tests
 
 ```sh
@@ -235,10 +233,10 @@ These tests are runnable without kind clusters.
 
 ```sh
 ## Run e2e tests with recreating the kind cluster.
-$ make clean-e2e-test
+$ make e2e/clean-test
 
 ## Run e2e tests on the existing kind cluster.
-$ make e2e-test
+$ make e2e/test
 ```
 
 ## Examples
@@ -252,25 +250,25 @@ This example assumes the usecase where the Pod logs are collected by fluentd and
 #### Build docker images
 
 ```sh
-$ make build-example-log-collection
+$ make examples/log-collection/build
 ```
 
 #### Load docker images into Kubernetes cluster created by kind
 
 ```sh
-$ make kind-load-image-example-log-collection
+$ make examples/log-collection/kind-load-image
 ```
 
 #### Deploy the example manifests
 
 ```sh
-$ make deploy-example-log-collection
+$ make examples/log-collection/deploy
 ```
 
 You can deploy manifests with recreating the Kubernetes cluster by kind.
 
 ```sh
-$ make clean-deploy-example-log-collection
+$ make examples/log-collection/clean-deploy
 ```
 
 ## CHANGELOG
