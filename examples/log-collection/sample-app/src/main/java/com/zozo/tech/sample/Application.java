@@ -32,6 +32,7 @@ public class Application {
         if (k.isEmpty()) break;
         String v = System.getenv(String.format("BENCHMARK_LOGGING_PAYLOAD_VALUE%d", payloadFieldCount));
         payload.put(k.get(), v);
+      }
   }
 
   public static void main(String[] args) throws InterruptedException {
@@ -39,19 +40,6 @@ public class Application {
     int logCount = 0;
     while (logCount < benchmarkLoggingMaxLogCount) {
       logCount++;
-
-      int payloadFieldCount = 0;
-      Map<String, Object> payload = new HashMap<String, Object>();
-      while (true) {
-        payloadFieldCount++;
-        k =
-            Optional.ofNullable(
-                System.getenv(String.format("BENCHMARK_LOGGING_PAYLOAD_KEY%d", payloadFieldCount)));
-        if (k.isEmpty()) break;
-        v = System.getenv(String.format("BENCHMARK_LOGGING_PAYLOAD_VALUE%d", payloadFieldCount));
-
-        payload.put(k.get(), v);
-      }
       eventLogger.info(append("event_version", 1), eventName, entries(payload));
       Thread.sleep(benchmarkLoggingIntervalMillis);
     }
