@@ -26,4 +26,15 @@ spec:
             limits:
               cpu: 100m
               memory: 50Mi
+          env:
+            - name: BENCHMARK_LOGGING_MAX_LOG_COUNT
+              value: "10000"
+            - name: BENCHMARK_LOGGING_INTERVAL_MILLIS
+              value: "1000"
+            - name: BENCHMARK_LOGGING_EVENT_NAME
+              value: "test-event"
+            - name: BENCHMARK_LOGGING_PAYLOAD_KEY1
+              value: "myKey1"
+            - name: BENCHMARK_LOGGING_PAYLOAD_VALUE1
+              value: "myValue1"
       terminationGracePeriodSeconds: 60
