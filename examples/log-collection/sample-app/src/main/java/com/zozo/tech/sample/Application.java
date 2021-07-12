@@ -24,7 +24,6 @@ public class Application {
     int logCount = 0;
     while (logCount < benchmarkLoggingMaxLogCount) {
       logCount++;
-      Thread.sleep(benchmarkLoggingIntervalMillis);
 
       int payloadFieldCount = 0;
       Map<String, Object> payload = new HashMap<String, Object>();
@@ -43,6 +42,7 @@ public class Application {
       String eventName =
           Optional.ofNullable(System.getenv("BENCHMARK_LOGGING_EVENT_NAME")).orElse("test-event");
       eventLogger.info(append("event_version", 1), eventName, entries(payload));
+      Thread.sleep(benchmarkLoggingIntervalMillis);
     }
   }
 }
