@@ -33,7 +33,7 @@ var testEnv *envtest.Environment
 var ctx context.Context
 var cancel context.CancelFunc
 
-func TestAPIs(t *testing.T) {
+func TestE2E(t *testing.T) {
 	RegisterFailHandler(Fail)
 
 	RunSpecsWithDefaultAndCustomReporters(t,
@@ -46,7 +46,7 @@ var _ = BeforeSuite(func() {
 
 	ctx, cancel = context.WithCancel(context.TODO())
 
-	By("bootstrapping test environment")
+	By("bootstrapping test environment: " + GinkgoNodeId())
 	testEnv = &envtest.Environment{
 		UseExistingCluster: pointer.BoolPtr(true),
 	}
@@ -77,7 +77,7 @@ var _ = BeforeSuite(func() {
 }, 60)
 
 var _ = AfterSuite(func() {
-	By("tearing down the test environment")
+	By("tearing down the test environment: " + GinkgoNodeId())
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
 })
