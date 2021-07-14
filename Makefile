@@ -126,7 +126,7 @@ bin/ginkgo: ## Download ginkgo locally if necessary.
 
 KUBECTL = $(shell pwd)/bin/kubectl
 bin/kubectl: ## Download kubectl locally if necessary.
-	curl --create-dirs -o $(KUBECTL) -sfL https://storage.googleapis.com/kubernetes-release/release/$(shell curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/$(shell uname -s | awk '{print tolower($0)}')/amd64/kubectl
+	curl --create-dirs -o $(KUBECTL) -sfL https://storage.googleapis.com/kubernetes-release/release/$(shell curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/$(shell uname -s | awk '{print tolower($$0)}')/amd64/kubectl
 	chmod a+x $(KUBECTL)
 
 ##@ Kind Cluster Management
