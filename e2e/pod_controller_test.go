@@ -65,7 +65,7 @@ var _ = Describe("pod_controller", func() {
 					}
 					return nil
 				}
-				Eventually(checkFn, 10).Should(Succeed())
+				Eventually(checkFn, 60).Should(Succeed())
 				Consistently(checkFn, 10).Should(Succeed())
 			})
 		})
