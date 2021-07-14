@@ -3,7 +3,9 @@ package e2e
 import (
 	"context"
 	"errors"
+	"fmt"
 
+	ginkgoConfig "github.com/onsi/ginkgo/config"
 	. "github.com/onsi/gomega"
 	fluentpvcv1alpha1 "github.com/st-tech/fluent-pvc-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -29,6 +31,13 @@ const (
 	testPVCName                         = "test-pvc"
 	testFluentPVCBindingName            = "test-fluent-pvc-binding"
 )
+
+func GinkgoNodeId() string {
+	return fmt.Sprintf("%d/%d",
+		ginkgoConfig.GinkgoConfig.ParallelNode,
+		ginkgoConfig.GinkgoConfig.ParallelTotal,
+	)
+}
 
 func waitUntilFluentPVCIsFound(ctx context.Context, c client.Client, fpvcName string) {
 	Eventually(func() error {

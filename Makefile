@@ -156,7 +156,10 @@ e2e/setup: cert-manager kind-load-image-fluent-pvc-operator fluent-pvc-operator 
 e2e/clean-setup: kind-create-cluster e2e/setup ## Re-create the k8s cluster && Setup the k8s cluster specified in ~/.kube/config for the e2e tests.
 e2e/test: bin/ginkgo ## Run the e2e tests in the k8s cluster specified in ~/.kube/config.
 	$(GINKGO) -nodes 1 -p -race -failFast -progress -trace -randomizeAllSpecs -coverprofile cover-e2e.out ./e2e
+e2e/test-backup: bin/ginkgo ## Run the e2e tests in the k8s cluster specified in ~/.kube/config.
+	$(GINKGO) -nodes 1 -p -race -failFast -progress -trace -randomizeAllSpecs -coverprofile cover-e2e.out ./e2e-backup
 e2e/clean-test: e2e/clean-setup e2e/test ## Run the e2e tests with relaunching the k8s cluster.
+e2e/clean-test-backup: e2e/clean-setup e2e/test-backup ## Run the e2e tests with relaunching the k8s cluster.
 
 ##@ Example Log Collection (User Defined Commands)
 EXAMPLE_LOG_COLLECTION_DIR = $(shell pwd)/examples/log-collection
