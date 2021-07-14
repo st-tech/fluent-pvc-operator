@@ -152,7 +152,7 @@ kind-load-image-fluent-pvc-operator: ## Load the fluent-pvc-operator docker imag
 	$(KIND) load docker-image --name $(KIND_CLUSTER_NAME) ${@:.kind-load-image-%=%}
 
 ##@ E2E Test
-e2e/setup: cert-manager kind-load-image-fluent-pvc-operator fluent-pvc-operator ## Setup the k8s cluster specified in ~/.kube/config for the e2e tests.
+e2e/setup: cert-manager docker-build kind-load-image-fluent-pvc-operator fluent-pvc-operator ## Setup the k8s cluster specified in ~/.kube/config for the e2e tests.
 e2e/clean-setup: kind-create-cluster e2e/setup ## Re-create the k8s cluster && Setup the k8s cluster specified in ~/.kube/config for the e2e tests.
 e2e/test: bin/ginkgo ## Run the e2e tests in the k8s cluster specified in ~/.kube/config.
 	$(GINKGO) -nodes 8 -p -race -failFast -progress -trace -randomizeAllSpecs -slowSpecThreshold 120 -coverprofile cover-e2e.out ./e2e
