@@ -126,7 +126,7 @@ bin/ginkgo: ## Download ginkgo locally if necessary.
 
 KUBECTL = $(shell pwd)/bin/kubectl
 bin/kubectl: ## Download kubectl locally if necessary.
-	curl --create-dirs -o $(KUBECTL) -sfL https://storage.googleapis.com/kubernetes-release/release/$(shell curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/$(shell uname -s | awk '{print tolower($0)}')/amd64/kubectl
+	curl --create-dirs -o $(KUBECTL) -sfL https://storage.googleapis.com/kubernetes-release/release/$(shell curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/$(shell uname -s | awk '{print tolower($$0)}')/amd64/kubectl
 	chmod a+x $(KUBECTL)
 
 ##@ Kind Cluster Management
@@ -152,11 +152,14 @@ kind-load-image-fluent-pvc-operator: ## Load the fluent-pvc-operator docker imag
 	$(KIND) load docker-image --name $(KIND_CLUSTER_NAME) ${@:.kind-load-image-%=%}
 
 ##@ E2E Test
-e2e/setup: cert-manager kind-load-image-fluent-pvc-operator fluent-pvc-operator ## Setup the k8s cluster specified in ~/.kube/config for the e2e tests.
+e2e/setup: cert-manager docker-build kind-load-image-fluent-pvc-operator fluent-pvc-operator ## Setup the k8s cluster specified in ~/.kube/config for the e2e tests.
 e2e/clean-setup: kind-create-cluster e2e/setup ## Re-create the k8s cluster && Setup the k8s cluster specified in ~/.kube/config for the e2e tests.
 e2e/test: bin/ginkgo ## Run the e2e tests in the k8s cluster specified in ~/.kube/config.
-	$(GINKGO) -nodes 1 -p -race -failFast -progress -trace -randomizeAllSpecs -coverprofile cover-e2e.out ./e2e
+	$(GINKGO) -nodes 8 -p -race -failFast -progress -trace -randomizeAllSpecs -slowSpecThreshold 120 -coverprofile cover-e2e.out ./e2e
+e2e/test-backup: bin/ginkgo ## Run the e2e tests in the k8s cluster specified in ~/.kube/config.
+	$(GINKGO) -nodes 1 -p -race -failFast -progress -trace -randomizeAllSpecs -coverprofile cover-e2e.out ./e2e-backup
 e2e/clean-test: e2e/clean-setup e2e/test ## Run the e2e tests with relaunching the k8s cluster.
+e2e/clean-test-backup: e2e/clean-setup e2e/test-backup ## Run the e2e tests with relaunching the k8s cluster.
 
 ##@ Example Log Collection (User Defined Commands)
 EXAMPLE_LOG_COLLECTION_DIR = $(shell pwd)/examples/log-collection

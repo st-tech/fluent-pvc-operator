@@ -23,6 +23,8 @@ func SetupFluentPVCWebhookWithManager(mgr ctrl.Manager) error {
 
 //+kubebuilder:webhook:path=/fluent-pvc/validate,mutating=false,failurePolicy=fail,sideEffects=None,groups=fluent-pvc-operator.tech.zozo.com,resources=fluentpvcs,verbs=create,versions=v1alpha1,name=fluent-pvc-validation-webhook.fluent-pvc-operator.tech.zozo.com,admissionReviewVersions={v1,v1beta1}
 //+kubebuilder:rbac:groups="storage.k8s.io",resources=storageclasses,verbs=get;list;watch
+//+kubebuilder:rbac:groups="",resources=pods,verbs=create
+//+kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=create
 
 type FluentPVCValidator struct {
 	Client  client.Client

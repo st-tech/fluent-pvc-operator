@@ -17,15 +17,16 @@ jobs:
       DOCKER_TAG: '0.0.1'
     steps:
     - uses: actions/checkout@v2
-
-    - name: Set up Golang
-      uses: actions/setup-go@v2
+    - uses: actions/setup-go@v2
       with:
         go-version: '1.16'
 
-    - name: Build
-      run:
-        make build
+    # Setup tmate session to debug via SSH. See https://github.com/mxschmitt/action-tmate
+    # - uses: mxschmitt/action-tmate@v1
+
+    - run: make build
+    - run: make test
+    - run: make e2e/clean-test
 
     # - name: Login to GitHub Container Registry
     #   uses: docker/login-action@v1
@@ -33,13 +34,6 @@ jobs:
     #     registry: ghcr.io
     #     username: ${{ github.repository_owner }}
     #     password: ${{ secrets.GITHUB_TOKEN }}
-
-    # Setup tmate session to debug via SSH. See https://github.com/mxschmitt/action-tmate
-    # - uses: mxschmitt/action-tmate@v1
-
-    # - name: make clean-e2e-test
-    #   run: |
-    #     make clean-e2e-test IMG=${DOCKER_IMAGE_URI}:${DOCKER_TAG}
 
     # - name: make docker-push
     #   if: github.event_name == 'push'
