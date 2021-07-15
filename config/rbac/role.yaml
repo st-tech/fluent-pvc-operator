@@ -22,6 +22,7 @@ rules:
   resources:
   - pods
   verbs:
+  - create
   - delete
   - get
   - list
@@ -90,3 +91,11 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - storage.k8s.io
+  resources:
+  - storageclasses
+  verbs:
+  - get
+  - list
+  - watch
