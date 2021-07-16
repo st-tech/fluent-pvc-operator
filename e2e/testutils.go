@@ -269,10 +269,10 @@ func (c *TestK8SClient) deletePV(ctx context.Context, pv *corev1.PersistentVolum
 }
 
 func (c *TestK8SClient) removeFinalizer(ctx context.Context, obj client.Object, finalizer string) error {
-	if !controllerutil.ContainsFinalizer(obj, constants.PVCFinalizerName) {
+	if !controllerutil.ContainsFinalizer(obj, finalizer) {
 		return nil
 	}
-	controllerutil.RemoveFinalizer(obj, constants.PVCFinalizerName)
+	controllerutil.RemoveFinalizer(obj, finalizer)
 	if err := c.Update(ctx, obj); client.IgnoreNotFound(err) != nil {
 		return err
 	}
