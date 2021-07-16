@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/imdario/mergo"
 	ginkgoConfig "github.com/onsi/ginkgo/config"
 	. "github.com/onsi/gomega"
 	"golang.org/x/xerrors"
@@ -37,33 +36,42 @@ const (
 )
 
 var (
-	testContainerSleepInf *corev1.Container = &corev1.Container{
+	TestContainerSleepInf *corev1.Container = &corev1.Container{
 		Name: testContainerNamePrefix + "sleep-inf",
 		Args: []string{"sleep", "inf"},
 		// NOTE: to reap zombie processes when receiving SIGTERM.
 		//       ref. https://github.com/krallin/tini
 		Image: "krallin/ubuntu-tini:trusty",
 	}
-	testSidecarContainerEcho *corev1.Container = &corev1.Container{
-		Name:    testSidecarContainerNamePrefix + "echo",
-		Command: []string{"echo", "sidecar"},
+	TestSidecarContainerEcho *corev1.Container = &corev1.Container{
+		Name: testSidecarContainerNamePrefix + "echo",
+		// NOTE: Sleep 10 at first to change the status "Ready".
+		Command: []string{"sh", "-c", "sleep 10; echo sidecar"},
 		Image:   "alpine",
 	}
-	testFinalizerContainerEcho *corev1.Container = &corev1.Container{
-		Name:    testFinalizerContainerNamePrefix + "echo",
-		Command: []string{"echo", "finalizer"},
+	TestSidecarContainerExit1 *corev1.Container = &corev1.Container{
+		Name: testSidecarContainerNamePrefix + "exit1",
+		// NOTE: Sleep 10 at first to change the status "Ready".
+		Command: []string{"sh", "-c", "sleep 10; exit 1"},
 		Image:   "alpine",
 	}
-	testDefaultPod *corev1.Pod = &corev1.Pod{
+	TestFinalizerContainerEcho *corev1.Container = &corev1.Container{
+		Name: testFinalizerContainerNamePrefix + "echo",
+		// NOTE: Sleep 10 at first to change the status "Ready".
+		Command: []string{"sh", "-c", "sleep 10; echo finalizer"},
+		Image:   "alpine",
+	}
+
+	TestDefaultPod *corev1.Pod = &corev1.Pod{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: corev1.SchemeGroupVersion.String(),
 			Kind:       "Pod",
 		},
 		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{*testContainerSleepInf.DeepCopy()},
+			Containers: []corev1.Container{*TestContainerSleepInf.DeepCopy()},
 		},
 	}
-	testDefaultFluentPVC *fluentpvcv1alpha1.FluentPVC = &fluentpvcv1alpha1.FluentPVC{
+	TestDefaultFluentPVC *fluentpvcv1alpha1.FluentPVC = &fluentpvcv1alpha1.FluentPVC{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: fluentpvcv1alpha1.GroupVersion.String(),
 			Kind:       "FluentPVC",
@@ -81,7 +89,7 @@ var (
 			PVCVolumeName:            "test-volume",
 			PVCVolumeMountPath:       "/mnt/test",
 			CommonEnvs:               []corev1.EnvVar{},
-			SidecarContainerTemplate: *testSidecarContainerEcho.DeepCopy(),
+			SidecarContainerTemplate: *TestSidecarContainerEcho.DeepCopy(),
 			DeletePodIfSidecarContainerTerminationDetected: true,
 			PVCFinalizerJobSpecTemplate: batchv1.JobSpec{
 				BackoffLimit: pointer.Int32Ptr(0),
@@ -89,7 +97,7 @@ var (
 					Spec: corev1.PodSpec{
 						RestartPolicy: corev1.RestartPolicyNever,
 						Containers: []corev1.Container{
-							*testFinalizerContainerEcho.DeepCopy(),
+							*TestFinalizerContainerEcho.DeepCopy(),
 						},
 					},
 				},
@@ -97,20 +105,6 @@ var (
 		},
 	}
 )
-
-func FillPodDefault(original *corev1.Pod) error {
-	if err := mergo.Merge(original, *testDefaultPod.DeepCopy()); err != nil {
-		return err
-	}
-	return nil
-}
-
-func FillFluentPVCDefault(org *fluentpvcv1alpha1.FluentPVC) error {
-	if err := mergo.Merge(org, *testDefaultFluentPVC.DeepCopy()); err != nil {
-		return err
-	}
-	return nil
-}
 
 func GinkgoNodeId() string {
 	return fmt.Sprintf("%d/%d",

@@ -37,15 +37,13 @@ var _ = Describe("pod_controller", func() {
 		When("a pod is applied", func() {
 			It("should not do anything", func() {
 				By("preparing objects on k8s")
-				fpvc := &fluentpvcv1alpha1.FluentPVC{}
+				fpvc := TestDefaultFluentPVC.DeepCopy()
 				fpvc.SetName(id)
-				Expect(FillFluentPVCDefault(fpvc)).Should(Succeed())
 				tc.FindOrCreate(ctx, fpvc)
 
-				pod := &corev1.Pod{}
+				pod := TestDefaultPod.DeepCopy()
 				pod.SetName(id)
 				pod.SetNamespace(id)
-				Expect(FillPodDefault(pod)).Should(Succeed())
 				tc.FindOrCreate(ctx, pod)
 
 				By("expecting injecting nothing")
