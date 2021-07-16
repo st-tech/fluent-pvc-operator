@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	defaultEventuallyTimeoutSeconds    int = 60
+	defaultEventuallyTimeoutSeconds    int = 300
 	defaultConsistentlyDurationSeconds int = 30
 )
 
