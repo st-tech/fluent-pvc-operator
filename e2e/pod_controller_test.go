@@ -44,7 +44,9 @@ var _ = Describe("pod_controller", func() {
 
 				By("expecting injecting nothing")
 				pod = &corev1.Pod{}
-				Expect(tc.Get(ctx, client.ObjectKey{Namespace: id, Name: id}, pod)).Should(Succeed())
+				pod.SetName(id)
+				pod.SetNamespace(id)
+				tc.Find(ctx, pod)
 				Expect(pod.Spec.Containers).Should(HaveLen(1))
 				Expect(pod.Spec.Volumes).Should(HaveLen(1)) // NOTE: only default-token-xxxx exists.
 
@@ -86,10 +88,12 @@ var _ = Describe("pod_controller", func() {
 
 				By("expecting injecting a sidecar container")
 				pod := &corev1.Pod{}
-				Expect(tc.Get(ctx, client.ObjectKey{Namespace: id, Name: id}, pod)).Should(Succeed())
+				pod.SetName(id)
+				pod.SetNamespace(id)
+				tc.Find(ctx, pod)
 				fpvc := &fluentpvcv1alpha1.FluentPVC{}
-				Expect(tc.Get(ctx, client.ObjectKey{Name: id}, fpvc)).Should(Succeed())
-				Expect(fpvc.Spec.DeletePodIfSidecarContainerTerminationDetected).Should(BeEquivalentTo(arg.fpvc.Spec.DeletePodIfSidecarContainerTerminationDetected))
+				fpvc.SetName(id)
+				tc.Find(ctx, fpvc)
 
 				Expect(pod.Spec.Containers).Should(HaveLen(2))
 				Expect(pod.Spec.Containers).Should(ContainElement(Satisfy(func(c corev1.Container) bool {

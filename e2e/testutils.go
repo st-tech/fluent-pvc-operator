@@ -137,6 +137,12 @@ func (c *TestK8SClient) FindOrCreate(ctx context.Context, obj client.Object, opt
 	}, 10).Should(Succeed())
 }
 
+func (c *TestK8SClient) Find(ctx context.Context, obj client.Object) {
+	Eventually(func() error {
+		return c.Get(ctx, client.ObjectKeyFromObject(obj), obj)
+	}, 10).Should(Succeed())
+}
+
 func (c *TestK8SClient) DeleteFluentPVC(ctx context.Context, name string) {
 	Eventually(func() error {
 		return c.deleteFluentPVCByName(ctx, name)
