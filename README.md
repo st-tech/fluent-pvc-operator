@@ -36,13 +36,13 @@ There are two Custom Resource Definitions that fluent-pvc-operator installs:
   - Users do not define this Custom Resource.
 
 ## Usage
-Put `fluent-pvc-operator.tech.zozo.com/fluent-pvc-name: <YOUR_DEFINED_FLUENT_PVC>` in the annotations of your pod, then fluent-pvc-operator processes the pod as a target.
+Put `fluent-pvc-operator.tech.zozo.com/fluent-pvc-name: <YOUR_DEFINED_FLUENT_PVC>` in the labels of your pod, then fluent-pvc-operator processes the pod as a target.
 
 ```
 apiVersion: v1
 kind: Pod
 metadata:
-  annotations:
+  labels:
     fluent-pvc-operator.tech.zozo.com/fluent-pvc-name: fluent-pvc-sample
   name: your-pod
 spec:
@@ -203,7 +203,7 @@ $ make fluent-pvc-operator
 
 ```sh
 $ kubectl apply -f config/samples/fluent-pvc-operator_v1alpha1_fluentpvc.yaml
-$ kubectl run --image=alpine:latest --annotations fluent-pvc-operator.tech.zozo.com/fluent-pvc-name=fluent-pvc-sample sample-pod -- sh -c 'for i in $(seq 1 60); do sleep 1; echo $i; done'
+$ kubectl run --image=alpine:latest --labels fluent-pvc-operator.tech.zozo.com/fluent-pvc-name=fluent-pvc-sample sample-pod -- sh -c 'for i in $(seq 1 60); do sleep 1; echo $i; done'
 
 ## You can watch the status changes by the following command.
 $ watch -n1 "

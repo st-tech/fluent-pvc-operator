@@ -92,8 +92,8 @@ func generateTestPodManifest(testPodConfig testPodConfig) *corev1.Pod {
 		},
 	}
 	if testPodConfig.AddFluentPVCAnnotation {
-		pod.SetAnnotations(map[string]string{
-			constants.PodAnnotationFluentPVCName: testPodConfig.FluentPVCName,
+		pod.SetLabels(map[string]string{
+			constants.PodLabelFluentPVCName: testPodConfig.FluentPVCName,
 		})
 	}
 	if testPodConfig.ContainerArgs != nil {

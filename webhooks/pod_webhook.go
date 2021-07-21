@@ -59,11 +59,8 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 		return admission.Denied("pod has no containers")
 	}
 	fpvc := &fluentpvcv1alpha1.FluentPVC{}
-	if n, ok := pod.Annotations[constants.PodAnnotationFluentPVCName]; !ok {
-		return admission.Allowed(fmt.Sprintf(
-			"Pod='%s'(namespace='%s', generatorName='%s') is not a target for fluent-pvc.",
-			pod.Name, req.Namespace, pod.GenerateName,
-		))
+	if n, ok := pod.Labels[constants.PodLabelFluentPVCName]; !ok {
+		return admission.Denied(fmt.Sprintf("pod does not have %s label.", constants.PodLabelFluentPVCName))
 	} else {
 		if err := m.Get(ctx, client.ObjectKey{Name: n}, fpvc); err != nil {
 			return admission.Errored(http.StatusInternalServerError, err)

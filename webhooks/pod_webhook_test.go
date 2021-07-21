@@ -130,8 +130,8 @@ var _ = Describe("Pod Mutation Webhook", func() {
 	It("should create a PVC and a FluentPVCBinding", func() {
 		ctx := context.Background()
 		pod := testPod.DeepCopy()
-		pod.SetAnnotations(map[string]string{
-			constants.PodAnnotationFluentPVCName: testFluentPVCName,
+		pod.SetLabels(map[string]string{
+			constants.PodLabelFluentPVCName: testFluentPVCName,
 		})
 		{
 			err := k8sClient.Create(ctx, pod)
@@ -189,8 +189,8 @@ var _ = Describe("Pod Mutation Webhook", func() {
 	It("should return a error when FluentPVC is not found.", func() {
 		ctx := context.Background()
 		pod := testPod.DeepCopy()
-		pod.SetAnnotations(map[string]string{
-			constants.PodAnnotationFluentPVCName: "IS_NOT_FOUND",
+		pod.SetLabels(map[string]string{
+			constants.PodLabelFluentPVCName: "IS_NOT_FOUND",
 		})
 		err := k8sClient.Create(ctx, pod)
 		Expect(err).ShouldNot(Succeed())
