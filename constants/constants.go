@@ -3,6 +3,7 @@ package constants
 const (
 	OwnerControllerField          = ".metadata.ownerReference.controller"
 	PodAnnotationFluentPVCName    = "fluent-pvc-operator.tech.zozo.com/fluent-pvc-name"
+	PodLabelFluentPVCName         = "fluent-pvc-operator.tech.zozo.com/fluent-pvc-name"
 	PodLabelFluentPVCBindingName  = "fluent-pvc-operator.tech.zozo.com/fluent-pvc-binding-name"
 	PVCFinalizerName              = "fluent-pvc-operator.tech.zozo.com/pvc-protection"
 	FluentPVCBindingFinalizerName = "fluent-pvc-operator.tech.zozo.com/fluentpvcbinding-protection"
