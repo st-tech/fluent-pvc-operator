@@ -1,6 +1,8 @@
 package v1alpha1
 
 import (
+	"sort"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -93,6 +95,26 @@ func (b *FluentPVCBinding) setCondition(t FluentPVCBindingConditionType, status 
 		Reason:  reason,
 		Message: message,
 	})
+	b.resetPhase()
+}
+
+func (b *FluentPVCBinding) resetPhase() {
+	conditions := []metav1.Condition{}
+	for _, c := range b.Status.Conditions {
+		if c.Status == metav1.ConditionTrue {
+			conditions = append(conditions, c)
+		}
+	}
+	if len(conditions) == 0 {
+		b.SetPhasePending()
+		return
+	}
+	sort.Slice(conditions, func(i, j int) bool {
+		// NOTE: Sort in order of LastTransisionTime from newest to oldest.
+		return conditions[j].LastTransitionTime.Before(&conditions[i].LastTransitionTime)
+	})
+	// NOTE: Use the latest condition
+	b.Status.Phase = FluentPVCBindingPhase(conditions[0].Type)
 }
 
 func (b *FluentPVCBinding) SetFluentPVC(fpvc *FluentPVC) {
@@ -111,6 +133,10 @@ func (b *FluentPVCBinding) toObjectIdentity(o *metav1.ObjectMeta) ObjectIdentity
 		Name: o.Name,
 		UID:  o.UID,
 	}
+}
+
+func (b *FluentPVCBinding) SetPhasePending() {
+	b.Status.Phase = FluentPVCBindingPhasePending
 }
 
 func (b *FluentPVCBinding) IsControlledBy(fpvc *FluentPVC) bool {
