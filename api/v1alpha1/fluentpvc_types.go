@@ -38,7 +38,6 @@ type FluentPVCSpec struct {
 	CommonVolumeMounts []corev1.VolumeMount `json:"commonVolumeMounts,omitempty"`
 	// Delete the pod if the sidecar container termination is detected.
 	//+kubebuilder:validation:Required
-	//+kubebuilder:default:true
 	DeletePodIfSidecarContainerTerminationDetected bool `json:"deletePodIfSidecarContainerTerminationDetected,omitempty"`
 }
 
@@ -52,10 +51,6 @@ type FluentPVCStatus struct {
 	//+listMapKey=type
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
-
-const (
-	ConditionReady string = "Ready"
-)
 
 // FluentPVC is the Schema for the fluentpvcs API
 //+kubebuilder:object:root=true
