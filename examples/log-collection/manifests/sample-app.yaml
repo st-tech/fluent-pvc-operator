@@ -15,7 +15,6 @@ spec:
     metadata:
       labels:
         app: sample-app
-      annotations:
         fluent-pvc-operator.tech.zozo.com/fluent-pvc-name: fluent-pvc-operator-example-log-collection
     spec:
       containers:

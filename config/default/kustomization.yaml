@@ -41,7 +41,11 @@ patchesStrategicMerge:
 # [CERTMANAGER] To enable cert-manager, uncomment all sections with 'CERTMANAGER'.
 # Uncomment 'CERTMANAGER' sections in crd/kustomization.yaml to enable the CA injection in the admission webhooks.
 # 'CERTMANAGER' needs to be enabled to use ca injection
-- webhookcainjection_patch.yaml
+- webhook_cainjection_patch.yaml
+
+# [WEBHOOK] To prevent all pod creation from being processed by the webhook, use objectSelector to process
+# only pods with a specific label.
+- webhook_objectselector_patch.yaml
 
 # the following config is for teaching kustomize how to do var substitution
 vars:

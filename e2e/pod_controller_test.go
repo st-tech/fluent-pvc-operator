@@ -83,7 +83,7 @@ var _ = Describe("pod_controller", func() {
 
 				arg.pod.SetName(id)
 				arg.pod.SetNamespace(id)
-				arg.pod.SetAnnotations(map[string]string{constants.PodAnnotationFluentPVCName: id})
+				arg.pod.SetLabels(map[string]string{constants.PodLabelFluentPVCName: id})
 				tc.FindOrCreate(ctx, arg.pod)
 
 				By("expecting injecting a sidecar container")

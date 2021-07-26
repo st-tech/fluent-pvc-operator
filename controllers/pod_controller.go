@@ -46,7 +46,7 @@ func (r *podReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	}
 
 	var fluentPVCName string
-	if v, ok := pod.Annotations[constants.PodAnnotationFluentPVCName]; !ok {
+	if v, ok := pod.Labels[constants.PodLabelFluentPVCName]; !ok {
 		// not target
 		return ctrl.Result{}, nil
 	} else {

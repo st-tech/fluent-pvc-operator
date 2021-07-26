@@ -267,11 +267,11 @@ func (r *fluentPVCBindingReconciler) fillPodUID(ctx context.Context, b *fluentpv
 			b.Name, pod.Name, b.Spec.PVC.Name,
 		))
 	}
-	podHasFluentPVCAnnotation := false
-	if v, ok := pod.Annotations[constants.PodAnnotationFluentPVCName]; ok {
-		podHasFluentPVCAnnotation = v == b.Spec.FluentPVC.Name
+	podHasFluentPVCLabel := false
+	if v, ok := pod.Labels[constants.PodLabelFluentPVCName]; ok {
+		podHasFluentPVCLabel = v == b.Spec.FluentPVC.Name
 	}
-	if !podHasFluentPVCAnnotation {
+	if !podHasFluentPVCLabel {
 		return xerrors.New(fmt.Sprintf(
 			"There is an inconsistency in the definition of fluentpvcbinding='%s' because pod='%s' does not have fluentpvc='%s'",
 			b.Name, pod.Name, b.Spec.FluentPVC.Name,
