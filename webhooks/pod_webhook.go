@@ -103,6 +103,11 @@ func (m *podMutator) Handle(ctx context.Context, req admission.Request) admissio
 		logger.Error(err, fmt.Sprintf("Cannot Create FluentPVCBinding='%s'.", name))
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
+	b.SetPhasePending()
+	if err := m.Status().Update(ctx, b); err != nil {
+		logger.Error(err, fmt.Sprintf("Cannot update the status of FluentPVCBinding='%s'.", name))
+		return admission.Errored(http.StatusInternalServerError, err)
+	}
 
 	logger.Info(fmt.Sprintf(
 		"Inject PVC='%s' into Pod='%s'(namespace='%s', generatorName='%s').",
