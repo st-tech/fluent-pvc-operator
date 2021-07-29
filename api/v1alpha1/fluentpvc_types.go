@@ -38,7 +38,6 @@ type FluentPVCSpec struct {
 	CommonVolumeMounts []corev1.VolumeMount `json:"commonVolumeMounts,omitempty"`
 	// Delete the pod if the sidecar container termination is detected.
 	//+kubebuilder:validation:Required
-	//+kubebuilder:default:true
 	DeletePodIfSidecarContainerTerminationDetected bool `json:"deletePodIfSidecarContainerTerminationDetected,omitempty"`
 }
 
@@ -52,10 +51,6 @@ type FluentPVCStatus struct {
 	//+listMapKey=type
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
-
-const (
-	ConditionReady string = "Ready"
-)
 
 // FluentPVC is the Schema for the fluentpvcs API
 //+kubebuilder:object:root=true
@@ -109,20 +104,38 @@ const (
 	FluentPVCBindingConditionUnknown               FluentPVCBindingConditionType = "Unknown"
 )
 
+type FluentPVCBindingPhase string
+
+const (
+	FluentPVCBindingPhasePending               FluentPVCBindingPhase = "Pending"
+	FluentPVCBindingPhaseReady                 FluentPVCBindingPhase = FluentPVCBindingPhase(FluentPVCBindingConditionReady)
+	FluentPVCBindingPhaseOutOfUse              FluentPVCBindingPhase = FluentPVCBindingPhase(FluentPVCBindingConditionOutOfUse)
+	FluentPVCBindingPhaseFinalizerJobApplied   FluentPVCBindingPhase = FluentPVCBindingPhase(FluentPVCBindingConditionFinalizerJobApplied)
+	FluentPVCBindingPhaseFinalizerJobSucceeded FluentPVCBindingPhase = FluentPVCBindingPhase(FluentPVCBindingConditionFinalizerJobSucceeded)
+	FluentPVCBindingPhaseFinalizerJobFailed    FluentPVCBindingPhase = FluentPVCBindingPhase(FluentPVCBindingConditionFinalizerJobFailed)
+	FluentPVCBindingPhaseUnknown               FluentPVCBindingPhase = FluentPVCBindingPhase(FluentPVCBindingConditionUnknown)
+)
+
 // FluentPVCStatus defines the observed state of FluentPVC
 type FluentPVCBindingStatus struct {
 	// Conditions is an array of conditions.
-	// Known .status.conditions.type are: "Ready"
 	//+patchMergeKey=type
 	//+patchStrategy=merge
 	//+listType=map
 	//+listMapKey=type
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
+	// Phase is the latest condition.
+	Phase FluentPVCBindingPhase `json:"phase,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:resource:scope=Namespaced
+//+kubebuilder:printcolumn:name="PHASE",type="string",JSONPath=".status.phase"
+//+kubebuilder:printcolumn:name="FLUENTPVC",type="string",JSONPath=".spec.fluentPVC.name"
+//+kubebuilder:printcolumn:name="POD",type="string",JSONPath=".spec.pod.name"
+//+kubebuilder:printcolumn:name="PVC",type="string",JSONPath=".spec.pvc.name"
 type FluentPVCBinding struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
