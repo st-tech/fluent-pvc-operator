@@ -133,6 +133,9 @@ type FluentPVCBindingStatus struct {
 //+kubebuilder:subresource:status
 //+kubebuilder:resource:scope=Namespaced
 //+kubebuilder:printcolumn:name="PHASE",type="string",JSONPath=".status.phase"
+//+kubebuilder:printcolumn:name="FLUENTPVC",type="string",JSONPath=".spec.fluentPVC.name"
+//+kubebuilder:printcolumn:name="POD",type="string",JSONPath=".spec.pod.name"
+//+kubebuilder:printcolumn:name="PVC",type="string",JSONPath=".spec.pvc.name"
 type FluentPVCBinding struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

@@ -20,6 +20,15 @@ spec:
     - jsonPath: .status.phase
       name: PHASE
       type: string
+    - jsonPath: .spec.fluentPVC.name
+      name: FLUENTPVC
+      type: string
+    - jsonPath: .spec.pod.name
+      name: POD
+      type: string
+    - jsonPath: .spec.pvc.name
+      name: PVC
+      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:
