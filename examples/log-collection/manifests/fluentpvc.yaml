@@ -34,8 +34,8 @@ spec:
       value: $(PUBSUB_EMULATOR_PROJECT_ID)
     - name: FLUENTD_OUT_GCLOUD_PUBSUB_COMPRESSION
       value: text  # to read data in gcloud-pubsub-emulator
-    - name: FLUENTD_STUCK_THRESHOLD_SECONDS
-      value: "1800"  # 30mins
+    - name: FLUENTD_STUCK_THRESHOLD_MINUTES
+      value: "30"
     - name: FLUENTD_REBOOT_WORKER_THRESHOLD_MINUTES
       value: "60"
     - name: FLUENTD_BUFFER_SIZE_THRESHOLD_BYTES
@@ -115,9 +115,8 @@ spec:
             fi
             if [[ -n "$(find ${FLUENTD_BUFFER_DIR} -type f ! -name '*.pos')" ]]; then
                 # if some buffer file exists, these files must be newer than the threshold.
-                touch -d "${FLUENTD_STUCK_THRESHOLD_SECONDS} seconds ago" /tmp/marker-stuck
-                if [[ -n "$(find ${FLUENTD_BUFFER_DIR} -type f ! -name '*.pos' ! -newer /tmp/marker-stuck)" ]]; then
-                    echo "[WARNING] Processing is stuck ${FLUENTD_STUCK_THRESHOLD_SECONDS} seconds."
+                if [[ -n "$(find ${FLUENTD_BUFFER_DIR} -type f ! -name '*.pos' -mmin +${FLUENTD_STUCK_THRESHOLD_MINUTES})" ]]; then
+                    echo "[WARNING] Processing is stuck ${FLUENTD_STUCK_THRESHOLD_MINUTES} minutes."
                     exit 1
                 fi
             fi
@@ -184,9 +183,8 @@ spec:
 
                     if [[ -n "$(find ${FLUENTD_BUFFER_DIR} -type f ! -name '*.pos')" ]]; then
                         # if some buffer file exists, these files must be newer than the threshold.
-                        touch -d "${FLUENTD_STUCK_THRESHOLD_SECONDS} seconds ago" /tmp/marker-stuck
-                        if [[ -n "$(find ${FLUENTD_BUFFER_DIR} -type f ! -name '*.pos' ! -newer /tmp/marker-stuck)" ]]; then
-                            echo "[WARNING] Processing is stuck ${FLUENTD_STUCK_THRESHOLD_SECONDS} seconds."
+                        if [[ -n "$(find ${FLUENTD_BUFFER_DIR} -type f ! -name '*.pos' -mmin +${FLUENTD_STUCK_THRESHOLD_MINUTES})" ]]; then
+                            echo "[WARNING] Processing is stuck ${FLUENTD_STUCK_THRESHOLD_MINUTES} minutes."
                             exit 0
                         fi
                     fi
@@ -225,9 +223,8 @@ spec:
                       while true; do
                           if [[ -n "$(find ${FLUENTD_BUFFER_DIR} -type f ! -name '*.pos')" ]]; then
                               # if some buffer file exists, these files must be newer than the threshold.
-                              touch -d "${FLUENTD_STUCK_THRESHOLD_SECONDS} seconds ago" /tmp/marker-stuck
-                              if [[ -n "$(find ${FLUENTD_BUFFER_DIR} -type f ! -name '*.pos' ! -newer /tmp/marker-stuck)" ]]; then
-                                  echo "[WARNING] Processing is stuck ${FLUENTD_STUCK_THRESHOLD_SECONDS} seconds."
+                              if [[ -n "$(find ${FLUENTD_BUFFER_DIR} -type f ! -name '*.pos' -mmin +${FLUENTD_STUCK_THRESHOLD_MINUTES})" ]]; then
+                                  echo "[WARNING] Processing is stuck ${FLUENTD_STUCK_THRESHOLD_MINUTES} minutes."
                                   sleep 1
                               else
                                   break
