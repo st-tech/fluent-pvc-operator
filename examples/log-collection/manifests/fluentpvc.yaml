@@ -18,6 +18,8 @@ spec:
       value: $(FLUENTPVC_PVC_VOLUME_MOUNT_PATH)/event-log
     - name: FLUENTD_BUFFER_DIR
       value: $(FLUENTPVC_PVC_VOLUME_MOUNT_PATH)/fluentd/buffer
+    - name: FLUENTD_LIFECYCLE_DIR
+      value: $(FLUENTPVC_PVC_VOLUME_MOUNT_PATH)/fluentd/lifecycle
     - name: FLUENTD_NUM_WORKERS
       value: "1"
     - name: FLUENTD_IN_TAIL_REFRESH_INTERVAL
@@ -34,6 +36,8 @@ spec:
       value: text  # to read data in gcloud-pubsub-emulator
     - name: FLUENTD_STUCK_THRESHOLD_SECONDS
       value: "1800"  # 30mins
+    - name: FLUENTD_REBOOT_WORKER_THRESHOLD_MINUTES
+      value: "60"
     - name: FLUENTD_BUFFER_SIZE_THRESHOLD_BYTES
       value: "10737418240"  # 10GB
     - name: FLUENTD_CORDON_FILE
@@ -98,6 +102,17 @@ spec:
           - pipefail
           - -c
           - |
+            LAST_REBOOT_WORKER_MARKER="${FLUENTD_LIFECYCLE_DIR}/last-worker-reboot-marker"
+            if [[ ! -f ${LAST_REBOOT_WORKER_MARKER} ]]; then
+                mkdir -p ${FLUENTD_LIFECYCLE_DIR}
+                touch ${LAST_REBOOT_WORKER_MARKER}
+            fi
+            if [[ -n "$(find ${LAST_REBOOT_WORKER_MARKER} -type f -mmin +${FLUENTD_REBOOT_WORKER_THRESHOLD_MINUTES})" ]]; then
+                # reboot fluentd workers periodically to avoid memory pressure.
+                if curl http://${POD_IP}:24444/api/config.reload; then
+                    touch ${LAST_REBOOT_WORKER_MARKER}
+                fi
+            fi
             if [[ -n "$(find ${FLUENTD_BUFFER_DIR} -type f ! -name '*.pos')" ]]; then
                 # if some buffer file exists, these files must be newer than the threshold.
                 touch -d "${FLUENTD_STUCK_THRESHOLD_SECONDS} seconds ago" /tmp/marker-stuck
@@ -154,6 +169,18 @@ spec:
                   - -c
                   - |
                     curl http://${POD_IP}:24444/api/plugins.flushBuffers
+
+                    LAST_REBOOT_WORKER_MARKER="${FLUENTD_LIFECYCLE_DIR}/last-worker-reboot-marker"
+                    if [[ ! -f ${LAST_REBOOT_WORKER_MARKER} ]]; then
+                        mkdir -p ${FLUENTD_LIFECYCLE_DIR}
+                        touch ${LAST_REBOOT_WORKER_MARKER}
+                    fi
+                    if [[ -n "$(find ${LAST_REBOOT_WORKER_MARKER} -type f -mmin +${FLUENTD_REBOOT_WORKER_THRESHOLD_MINUTES})" ]]; then
+                        # reboot fluentd workers periodically to avoid memory pressure.
+                        if curl http://${POD_IP}:24444/api/config.reload; then
+                            touch ${LAST_REBOOT_WORKER_MARKER}
+                        fi
+                    fi
 
                     if [[ -n "$(find ${FLUENTD_BUFFER_DIR} -type f ! -name '*.pos')" ]]; then
                         # if some buffer file exists, these files must be newer than the threshold.
