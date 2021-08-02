@@ -9,15 +9,22 @@ ENV GEM_PATH /fluentd/vendor/bundle/ruby/2.6.0
 ENV GEM_HOME /fluentd/vendor/bundle/ruby/2.6.0
 # skip runtime bundler installation
 ENV FLUENTD_DISABLE_BUNDLER_INJECTION 1
+# Use the latest jemalloc https://github.com/jemalloc/jemalloc/releases
+# ref. https://github.com/fluent/fluentd-docker-image/blob/4e08108/v1.12/debian/Dockerfile#L38-L41
+ENV JEMALLOC_VERSION 5.2.1
 
 COPY Gemfile* /fluentd/
-RUN buildDeps="sudo make gcc g++ libc-dev libffi-dev" \
+RUN buildDeps="sudo make gcc g++ libc-dev libffi-dev wget bzip2" \
 	runtimeDeps="curl" \
 	&& apt-get update \
 	&& apt-get upgrade -y \
 	&& apt-get install \
 	-y --no-install-recommends \
 	$buildDeps $runtimeDeps net-tools \
+	&& wget -O /tmp/jemalloc-${JEMALLOC_VERSION}.tar.bz2 https://github.com/jemalloc/jemalloc/releases/download/${JEMALLOC_VERSION}/jemalloc-${JEMALLOC_VERSION}.tar.bz2 \
+        && cd /tmp && tar -xjf jemalloc-${JEMALLOC_VERSION}.tar.bz2 && cd jemalloc-${JEMALLOC_VERSION}/ \
+        && ./configure && make \
+        && mv lib/libjemalloc.so.2 /usr/lib \
 	&& gem install bundler --version 2.2.6 \
 	&& bundle config silence_root_warning true \
 	&& bundle config set path /fluentd/vendor/bundle \
