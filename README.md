@@ -166,10 +166,6 @@ $ make deploy IMG=ghcr.io/st-tech/fluent-pvc-operator:0.0.1
   - Inject the sidecar container definition into Pods.
   - Creates FluentPVCBindings with FluentPVC, Pod, and PVC identities.
 
-### State Transition Diagrams
-
-TBD.
-
 ## Development
 
 Use [kind](https://kind.sigs.k8s.io/) to create local Kubernetes clusters.
