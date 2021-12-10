@@ -82,6 +82,11 @@ deploy: manifests bin/kustomize bin/kubectl ## Deploy controller to the k8s clus
 undeploy: bin/kubectl ## Undeploy controller from the k8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/default | kubectl delete -f -
 
+AIO_FILE=$(shell pwd)/deploy/fluent-pvc-operator-aio.yaml
+aio: manifests bin/kustomize bin/kubectl ## Build a file which all manifest in one.
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
+	$(KUSTOMIZE) build config/default > ${AIO_FILE}
+
 KUBECTL_WAIT_TIMEOUT ?= 300s
 FLUENT_PVC_NAMESPACE = fluent-pvc-operator-system
 fluent-pvc-operator: deploy ## Deploy fluent-pvc-operator into the k8s cluster specified in ~/.kube/config && Wait until it becomes available.
