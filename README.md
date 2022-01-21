@@ -269,7 +269,7 @@ $ make examples/log-collection/clean-deploy
 
 ## CHANGELOG
 
-[CHANGELOG.md](./CHANGELOG.md)
+Please see the [list of releases](https://github.com/st-tech/fluent-pvc-operator/releases) for information on changes between releases.
 
 ## License
 
