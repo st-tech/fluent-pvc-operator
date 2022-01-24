@@ -41,6 +41,10 @@ manifests: bin/controller-gen ## Generate WebhookConfiguration, ClusterRole and 
 generate: bin/controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
+manifests-release: manifests bin/kustomize  ## Generate all-in-one manifest for release
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
+	$(KUSTOMIZE) build config/default > fluent-pvc-operator.yaml
+
 fmt: ## Run go fmt against code.
 	go fmt ./...
 
