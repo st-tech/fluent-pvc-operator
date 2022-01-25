@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - 'main'
-      - 'support-auto-release-creation-in-ci'
     tags:
       - '*'
   pull_request:
