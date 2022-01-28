@@ -88,3 +88,19 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Get Tag Name
+        id: get_tag
+        run: |
+          echo ::set-output name=TAG::${GITHUB_REF#refs/tags/}
+      - name: Create release YAML
+        run: |
+          make manifests-release IMG=$CONTAINER_IMAGE_REPOSITORY:${{ steps.get_tag.outputs.TAG }}
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: ${{ steps.get_tag.outputs.TAG }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: fluent-pvc-operator.yaml
