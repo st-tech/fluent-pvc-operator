@@ -47,14 +47,14 @@ func (r *pvcReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	pvc := &corev1.PersistentVolumeClaim{}
 	if err := r.Get(ctx, req.NamespacedName, pvc); err != nil {
 		if apierrors.IsNotFound(err) {
-			return ctrl.Result{}, nil
+			return requeueResult(10 * time.Second), nil
 		}
 		return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
 	}
 	b := &fluentpvcv1alpha1.FluentPVCBinding{}
 	if err := r.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: pvc.Name}, b); err != nil {
 		if apierrors.IsNotFound(err) {
-			return ctrl.Result{}, nil
+			return requeueResult(10 * time.Second), nil
 		}
 		return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
 	}
@@ -63,6 +63,29 @@ func (r *pvcReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 			"Skip processing because pvc.UID='%s' is different from fluentpvcbinding.Spec.PVC.UID='%s' for name='%s'.",
 			pvc.UID, b.Spec.PVC.UID, pvc.Name,
 		))
+		return ctrl.Result{}, nil
+	}
+	if b.IsConditionPodMissing() {
+		logger.Info(fmt.Sprintf("fluentpvcbinding='%s' is missing target pod, so delete pvc='%s'.", b.Name, pvc.Name))
+
+		logger.Info(fmt.Sprintf("Remove the finalizer='%s' from pvc='%s'", constants.PVCFinalizerName, pvc.Name))
+		controllerutil.RemoveFinalizer(pvc, constants.PVCFinalizerName)
+		// Update PVC resource to remove finalizer.
+		if err := r.Update(ctx, pvc); client.IgnoreNotFound(err) != nil {
+			if apierrors.IsConflict(err) {
+				// NOTE: Conflict with deleting the pvc in other pvcReconciler#Reconcile.
+				return ctrl.Result{}, nil
+			}
+			return ctrl.Result{}, xerrors.Errorf(
+				"Failed to remove finalizer from PVC='%s'.: %w",
+				pvc.Name, err,
+			)
+		}
+
+		if err := r.Delete(ctx, pvc, deleteOptionsBackground(&pvc.UID, &pvc.ResourceVersion)); client.IgnoreNotFound(err) != nil {
+			return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
+		}
+
 		return ctrl.Result{}, nil
 	}
 	if b.IsConditionUnknown() {
