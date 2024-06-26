@@ -102,6 +102,7 @@ const (
 	FluentPVCBindingConditionFinalizerJobSucceeded FluentPVCBindingConditionType = "FinalizerJobSucceeded"
 	FluentPVCBindingConditionFinalizerJobFailed    FluentPVCBindingConditionType = "FinalizerJobFailed"
 	FluentPVCBindingConditionUnknown               FluentPVCBindingConditionType = "Unknown"
+	FluentPVCBindingConditionPodMissing            FluentPVCBindingConditionType = "PodMissing"
 )
 
 type FluentPVCBindingPhase string
@@ -114,6 +115,7 @@ const (
 	FluentPVCBindingPhaseFinalizerJobSucceeded FluentPVCBindingPhase = FluentPVCBindingPhase(FluentPVCBindingConditionFinalizerJobSucceeded)
 	FluentPVCBindingPhaseFinalizerJobFailed    FluentPVCBindingPhase = FluentPVCBindingPhase(FluentPVCBindingConditionFinalizerJobFailed)
 	FluentPVCBindingPhaseUnknown               FluentPVCBindingPhase = FluentPVCBindingPhase(FluentPVCBindingConditionUnknown)
+	FluentPVCBindingPhasePodMissing            FluentPVCBindingPhase = FluentPVCBindingPhase(FluentPVCBindingConditionPodMissing)
 )
 
 // FluentPVCStatus defines the observed state of FluentPVC
