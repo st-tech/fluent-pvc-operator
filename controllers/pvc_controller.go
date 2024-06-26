@@ -47,6 +47,7 @@ func (r *pvcReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	pvc := &corev1.PersistentVolumeClaim{}
 	if err := r.Get(ctx, req.NamespacedName, pvc); err != nil {
 		if apierrors.IsNotFound(err) {
+			logger.Info(fmt.Sprintf("Requeue request because pvc='%s' is not found.", req.NamespacedName))
 			return requeueResult(10 * time.Second), nil
 		}
 		return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
@@ -54,6 +55,7 @@ func (r *pvcReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	b := &fluentpvcv1alpha1.FluentPVCBinding{}
 	if err := r.Get(ctx, client.ObjectKey{Namespace: req.Namespace, Name: pvc.Name}, b); err != nil {
 		if apierrors.IsNotFound(err) {
+			logger.Info(fmt.Sprintf("Requeue request because fluentpvcbinding='%s' (namespace='%s') is not found.", pvc.Name, req.Namespace))
 			return requeueResult(10 * time.Second), nil
 		}
 		return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
