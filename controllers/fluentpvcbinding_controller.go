@@ -88,6 +88,14 @@ func (r *fluentPVCBindingReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		pvcFound = filled
 	}
 
+	if !pvcFound && b.IsConditionPodMissing() {
+		logger.Info(fmt.Sprintf("fluentpvcbinding='%s' is missing the target pod, so delete fluentpvcbinding='%s'.", b.Name, b.Name))
+		if err := r.deleteFluentPVCBinding(ctx, b); err != nil {
+			return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
+		}
+		return ctrl.Result{}, nil
+	}
+
 	if pvcFound && pvc.Status.Phase == corev1.ClaimLost {
 		if err := r.updateConditionUnknownPVCLost(ctx, b); err != nil {
 			return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
@@ -108,7 +116,7 @@ func (r *fluentPVCBindingReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	if !podFound && !b.IsConditionReady() {
 		if isCreatedBefore(b, 1*time.Hour) { // TODO: make it configurable?
-			if err := r.updateConditionUnknownPodNotFoundLongTime(ctx, b); err != nil {
+			if err := r.updateConditionPodMissingBindingPodTimeout(ctx, b); err != nil {
 				return ctrl.Result{}, xerrors.Errorf("Unexpected error occurred.: %w", err)
 			}
 		} else {
@@ -305,12 +313,12 @@ func (r *fluentPVCBindingReconciler) updateConditionUnknownPVCLost(ctx context.C
 	return r.updateConditionUnknown(ctx, b, "PVCLost", message)
 }
 
-func (r *fluentPVCBindingReconciler) updateConditionUnknownPodNotFoundLongTime(ctx context.Context, b *fluentpvcv1alpha1.FluentPVCBinding) error {
+func (r *fluentPVCBindingReconciler) updateConditionPodMissingBindingPodTimeout(ctx context.Context, b *fluentpvcv1alpha1.FluentPVCBinding) error {
 	message := fmt.Sprintf(
 		"Pod='%s'(UID='%s') is not found even though it hasn't been finalized since it became Ready status.(fluentpvcbinding='%s')",
 		b.Spec.Pod.Name, b.Spec.Pod.UID, b.Name,
 	)
-	return r.updateConditionUnknown(ctx, b, "PodNotFound", message)
+	return r.updateConditionPodMissing(ctx, b, "BindingPodTimeout", message)
 }
 
 func (r *fluentPVCBindingReconciler) updateConditionUnknownPodAndPVCNotFound(ctx context.Context, b *fluentpvcv1alpha1.FluentPVCBinding) error {
@@ -377,6 +385,10 @@ func (r *fluentPVCBindingReconciler) updateConditionReadyPodFoundPVCFound(ctx co
 
 func (r *fluentPVCBindingReconciler) updateConditionReady(ctx context.Context, b *fluentpvcv1alpha1.FluentPVCBinding, reason, message string) error {
 	return r.updateCondition(ctx, b, reason, message, b.SetConditionReady)
+}
+
+func (r *fluentPVCBindingReconciler) updateConditionPodMissing(ctx context.Context, b *fluentpvcv1alpha1.FluentPVCBinding, reason, message string) error {
+	return r.updateCondition(ctx, b, reason, message, b.SetConditionPodMissing)
 }
 
 func (r *fluentPVCBindingReconciler) updateCondition(ctx context.Context, b *fluentpvcv1alpha1.FluentPVCBinding, reason, message string, conditionUpdateFunc func(string, string)) error {

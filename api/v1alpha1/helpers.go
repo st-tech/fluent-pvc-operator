@@ -32,6 +32,10 @@ func (b *FluentPVCBinding) IsConditionUnknown() bool {
 	return meta.IsStatusConditionTrue(b.Status.Conditions, string(FluentPVCBindingConditionUnknown))
 }
 
+func (b *FluentPVCBinding) IsConditionPodMissing() bool {
+	return meta.IsStatusConditionTrue(b.Status.Conditions, string(FluentPVCBindingConditionPodMissing))
+}
+
 func (b *FluentPVCBinding) SetConditionReady(reason, message string) {
 	b.setConditionTrue(FluentPVCBindingConditionReady, reason, message)
 }
@@ -54,6 +58,10 @@ func (b *FluentPVCBinding) SetConditionFinalizerJobFailed(reason, message string
 
 func (b *FluentPVCBinding) SetConditionUnknown(reason, message string) {
 	b.setConditionTrue(FluentPVCBindingConditionUnknown, reason, message)
+}
+
+func (b *FluentPVCBinding) SetConditionPodMissing(reason, message string) {
+	b.setConditionTrue(FluentPVCBindingConditionPodMissing, reason, message)
 }
 
 func (b *FluentPVCBinding) SetConditionNotReady(reason, message string) {
